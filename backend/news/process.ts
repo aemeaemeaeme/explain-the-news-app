@@ -1,6 +1,7 @@
 import { api } from "encore.dev/api";
 import db from "../db";
 import OpenAI from "openai";
+import { randomUUID } from "crypto";
 
 /**
  * Exposes endpoint as `news.process` so the frontend call
@@ -275,6 +276,9 @@ export const process = api<ProcessRequest, ProcessResponse>(
     const extracted = await extractTextFromUrl(url);
     const analysis = await generateAnalysis(extracted.text, url);
 
+    // Generate a unique ID for this article
+    const articleId = randomUUID();
+
     // Persist into `articles` (columns your get.ts expects)
     const whyJson = JSON.stringify(analysis.why_it_matters || []);
     const pointsJson = JSON.stringify(analysis.key_points || []);
@@ -285,7 +289,7 @@ export const process = api<ProcessRequest, ProcessResponse>(
 
     const rows = await db.query/*sql*/`
       INSERT INTO articles (
-        url, title, content,
+        id, url, title, content,
         tldr_headline, tldr_subhead,
         eli5_summary, eli5_analogy,
         why_it_matters, key_points,
@@ -294,6 +298,7 @@ export const process = api<ProcessRequest, ProcessResponse>(
         tone, sentiment_positive, sentiment_neutral, sentiment_negative, sentiment_rationale,
         source_mix, reading_time, domain, byline, published_at, follow_up_questions
       ) VALUES (
+        ${articleId},
         ${url},
         ${analysis.meta.title || extracted.title},
         ${extracted.text},
@@ -333,6 +338,6 @@ export const process = api<ProcessRequest, ProcessResponse>(
     const id = rowsArray?.[0]?.id as string | undefined;
     if (!id) return { success: false, error: "Failed to save article" };
 
-    return { success: true, id };
+    return { success: true, id: articleId };
   }
 );
