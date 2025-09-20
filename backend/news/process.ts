@@ -1,17 +1,10 @@
 import { api } from "encore.dev/api";
 import db from "../db";
+import OpenAI from "openai";
 
 /**
- * NOTE: This file exposes the endpoint as `news.process` so your frontend call
+ * Exposes endpoint as `news.process` so the frontend call
  * `backend.news.process({ url })` works.
- *
- * It:
- * 1) validates the URL,
- * 2) fetches + extracts text (simple best-effort),
- * 3) runs the AI analysis (generateAnalysis),
- * 4) normalizes the JSON,
- * 5) stores it in `articles`,
- * 6) returns { success: true, id }.
  */
 
 // ---------------- Types that match your frontend/get.ts ----------------
@@ -68,10 +61,7 @@ function normalizeBias(leftIn: unknown, centerIn: unknown, rightIn: unknown) {
     L = Math.round(L * scale);
     C = Math.round(C * scale);
     R = 100 - L - C;
-    if (R < 0) { // rounding guard
-      if (L >= C) L += R; else C += R;
-      R = 0;
-    }
+    if (R < 0) { if (L >= C) L += R; else C += R; R = 0; }
   }
   return { left: L, center: C, right: R };
 }
@@ -93,7 +83,6 @@ async function extractTextFromUrl(url: string): Promise<{ text: string; title: s
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
     const title = titleMatch?.[1]?.trim() || "Untitled article";
 
-    // crude strip of tags; good enough as a fallback
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -101,7 +90,6 @@ async function extractTextFromUrl(url: string): Promise<{ text: string; title: s
       .replace(/\s+/g, " ")
       .trim();
 
-    // if text is suspiciously short, fall back to your sentinel
     if (!text || text.split(" ").length < 60) {
       return { text: "Content could not be extracted from this URL.", title };
     }
@@ -111,13 +99,7 @@ async function extractTextFromUrl(url: string): Promise<{ text: string; title: s
   }
 }
 
-// ---------------- AI: your existing function (kept as-is) ----------------
-/**
- * You provided this function in your message. We keep it and add minimal helpers
- * so it compiles. If you already define `sanitizeAnalysis` or `generateMockAnalysis`
- * elsewhere, you can remove these local versions.
- */
-import OpenAI from "openai";
+// ---------------- OpenAI client ----------------
 const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY as string });
 
 // very light sanitizer to guarantee required keys exist
@@ -207,7 +189,7 @@ function generateMockAnalysis(content: string, url: string): ArticleAnalysis {
   };
 }
 
-// Your original function (kept, but now it calls the local sanitizers)
+// ---------- OpenAI-powered analysis (fixed to use OpenAI SDK) ----------
 async function generateAnalysis(content: string, url: string): Promise<ArticleAnalysis> {
   const domain = new URL(url).hostname;
   const wordCount = content.split(/\s+/).filter(Boolean).length;
@@ -239,23 +221,28 @@ ${safeContent}
 
 Return JSON only.`;
 
-  const models = ["gpt-4o", "gpt-4", "gpt-3.5-turbo"]; // More stable versions
+  // Use a conservative list—adjust to models enabled on your account
+  const models = ["gpt-4o-mini", "gpt-4o"];
 
   for (const m of models) {
     try {
-      const { text } = await generateText({
-        model: openai(m as any),
-        system: systemPrompt,
-        prompt: userPrompt,
-        maxTokens: 4000,
+      const comp = await openaiClient.chat.completions.create({
+        model: m,
+        temperature: 0.2,
+        max_tokens: 4000,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
       });
 
-      console.log(`🧠 Raw AI (${m}) response:`, text?.slice(0, 500));
+      const text = comp.choices?.[0]?.message?.content ?? "";
+      console.log(`🧠 Raw AI (${m}) response:`, text.slice(0, 500));
 
       let raw: any;
       try {
         raw = JSON.parse(text || "{}");
-      } catch (e) {
+      } catch {
         console.error(`❌ ${m} returned invalid JSON. Skipping.`);
         continue;
       }
@@ -274,7 +261,6 @@ Return JSON only.`;
     }
   }
 
-  // If we got here, all models failed
   console.error("⚠️ All AI models failed. Using mock fallback.");
   return generateMockAnalysis(content, url);
 }
@@ -283,19 +269,13 @@ Return JSON only.`;
 export const process = api<ProcessRequest, ProcessResponse>(
   { expose: true, method: "POST", path: "/article/process" },
   async ({ url }) => {
-    // 1) Validate URL
-    if (!url || typeof url !== "string") {
-      return { success: false, error: "Missing url" };
-    }
+    if (!url || typeof url !== "string") return { success: false, error: "Missing url" };
     try { new URL(url); } catch { return { success: false, error: "Invalid url" }; }
 
-    // 2) Extract best-effort text
     const extracted = await extractTextFromUrl(url);
-
-    // 3) Run AI analysis (returns normalized JSON)
     const analysis = await generateAnalysis(extracted.text, url);
 
-    // 4) Persist into `articles` (columns your get.ts expects)
+    // Persist into `articles` (columns your get.ts expects)
     const whyJson = JSON.stringify(analysis.why_it_matters || []);
     const pointsJson = JSON.stringify(analysis.key_points || []);
     const perspectivesJson = JSON.stringify(analysis.perspectives || []);
