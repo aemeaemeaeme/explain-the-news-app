@@ -1,4 +1,5 @@
 import { api } from "encore.dev/api";
+import { secret } from "encore.dev/config";
 import db from "../db";
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
@@ -101,7 +102,8 @@ async function extractTextFromUrl(url: string): Promise<{ text: string; title: s
 }
 
 // ---------------- OpenAI client ----------------
-const openaiClient = new OpenAI({ apiKey: (globalThis as any).process?.env?.OPENAI_API_KEY || '' });
+const openaiApiKey = secret("OpenAIKey");
+const openaiClient = new OpenAI({ apiKey: openaiApiKey() });
 
 // very light sanitizer to guarantee required keys exist
 function sanitizeAnalysis(raw: any, url: string, content: string): ArticleAnalysis {
@@ -194,6 +196,13 @@ function generateMockAnalysis(content: string, url: string): ArticleAnalysis {
 async function generateAnalysis(content: string, url: string): Promise<ArticleAnalysis> {
   const domain = new URL(url).hostname;
   const wordCount = content.split(/\s+/).filter(Boolean).length;
+
+  // Check if OpenAI API key is configured
+  const apiKey = openaiApiKey();
+  if (!apiKey || apiKey.trim() === "") {
+    console.warn("⚠️ OpenAI API key not configured. Using mock fallback.");
+    return generateMockAnalysis(content, url);
+  }
 
   const safeContent =
     content && content !== "Content could not be extracted from this URL."
