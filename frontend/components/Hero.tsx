@@ -12,46 +12,22 @@ export default function Hero() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // ---- helper: call whichever SDK method Leap actually generated ----
-  async function processArticle(u: string) {
-    const api: any = (backend as any)?.news;
-    if (!api) throw new Error('Backend not loaded');
-
-    const fn =
-      api.process ??        // matches backend/news/process.ts
-      api.process_url ??    // some generators use snake_case
-      api.explain ??        // fallback names, just in case
-      api.create;
-
-    if (!fn) throw new Error('news: no process* endpoint found');
-
-    // All Leap SDK methods take a single object param
-    const res = await fn({ url: u });
-
-    // Normalize common return shapes:
-    const id =
-      res?.id ??
-      res?.articleId ??
-      res?.summaryId ??
-      res?.data?.id ??
-      res?.resultId;
-
-    const success = Boolean(res?.success ?? id);
-
-    return { success, id, raw: res };
+  // Call the backend news.process endpoint
+  async function processArticle(url: string) {
+    const res = await backend.news.process({ url });
+    return res;
   }
 
   const processUrlMutation = useMutation({
-    mutationFn: (u: string) => processArticle(u),
-    onSuccess: ({ success, id, raw }) => {
-      if (success && id) {
-        navigate(`/article/${id}`);
+    mutationFn: (url: string) => processArticle(url),
+    onSuccess: (response) => {
+      if (response.success && response.id) {
+        navigate(`/article/${response.id}`);
       } else {
-        console.warn('Process response without id:', raw);
+        console.warn('Process response:', response);
         toast({
           title: 'Processing Failed',
-          description:
-            "We couldn't process this article. Please try another URL.",
+          description: response.error || "We couldn't process this article. Please try another URL.",
           variant: 'destructive',
         });
       }

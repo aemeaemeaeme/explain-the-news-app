@@ -100,11 +100,16 @@ export const getArticle = api<GetArticleRequest, GetArticleResponse>(
       LIMIT 1
     `;
 
-    if (!rows || rows.length === 0) {
+    const rowsArray = [];
+    for await (const row of rows) {
+      rowsArray.push(row);
+    }
+    
+    if (!rowsArray || rowsArray.length === 0) {
       return { article: null };
     }
 
-    const r: any = rows[0] ?? {};
+    const r: any = rowsArray[0] ?? {};
 
     // 2) Parse JSON columns safely
     const why = safeParseArray<string>(r.why_it_matters);

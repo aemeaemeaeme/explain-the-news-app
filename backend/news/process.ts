@@ -100,7 +100,7 @@ async function extractTextFromUrl(url: string): Promise<{ text: string; title: s
 }
 
 // ---------------- OpenAI client ----------------
-const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY as string });
+const openaiClient = new OpenAI({ apiKey: (globalThis as any).process?.env?.OPENAI_API_KEY || '' });
 
 // very light sanitizer to guarantee required keys exist
 function sanitizeAnalysis(raw: any, url: string, content: string): ArticleAnalysis {
@@ -326,7 +326,11 @@ export const process = api<ProcessRequest, ProcessResponse>(
       RETURNING id
     `;
 
-    const id = rows?.[0]?.id as string | undefined;
+    const rowsArray = [];
+    for await (const row of rows) {
+      rowsArray.push(row);
+    }
+    const id = rowsArray?.[0]?.id as string | undefined;
     if (!id) return { success: false, error: "Failed to save article" };
 
     return { success: true, id };
