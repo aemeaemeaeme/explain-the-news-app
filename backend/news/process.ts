@@ -117,7 +117,8 @@ async function extractTextFromUrl(url: string): Promise<{ text: string; title: s
  * so it compiles. If you already define `sanitizeAnalysis` or `generateMockAnalysis`
  * elsewhere, you can remove these local versions.
  */
-import { generateText, openai } from "ai";
+import OpenAI from "openai";
+const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY as string });
 
 // very light sanitizer to guarantee required keys exist
 function sanitizeAnalysis(raw: any, url: string, content: string): ArticleAnalysis {

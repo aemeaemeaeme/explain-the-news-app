@@ -7,8 +7,8 @@
     "build": "cd ../frontend \u0026\u0026 bun install \u0026\u0026 vite build --outDir=../backend/frontend/dist"
   },
   "dependencies": {
-    "ai": "^5.0.5",
-    "encore.dev": "^1.50.0"
+    "encore.dev": "^1.50.0",
+    "openai": "^4.104.0"
   },
   "devDependencies": {
     "typescript": "^5.9.2"
