@@ -87,7 +87,7 @@ export default function ArticlePage() {
       {/* Sticky mobile back button */}
       <button
         onClick={() => navigate('/')}
-        className="fixed bottom-6 right-6 md:hidden bg-[#8FA573] hover:bg-[#738a5f] text-white p-3 rounded-full shadow-lg transition-colors z-50"
+        className="fixed bottom-6 right-6 md:hidden btn-olive p-3 rounded-full shadow-lg z-50"
         aria-label="Back to input"
       >
         <ArrowLeft className="h-5 w-5" />

@@ -29,13 +29,14 @@ export default function FollowUpQuestions({ questions }: FollowUpQuestionsProps)
 
   return (
     <div className="space-y-3">
-      {normalizedQuestions.slice(0, 3).map((item, index) => (
-        <div key={index} className="border border-gray-200 rounded-xl overflow-hidden">
+      {normalizedQuestions.slice(0, 5).map((item, index) => (
+        <div key={index} className="border border-gray-200 rounded-xl overflow-hidden card-shadow">
           <button
-            className="w-full px-6 py-4 text-left flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
+            className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-gray-50 transition-colors duration-200"
+            style={{backgroundColor: openIndex === index ? 'var(--sage)' : 'white'}}
             onClick={() => setOpenIndex(openIndex === index ? null : index)}
           >
-            <span className="font-medium text-gray-900 pr-4">
+            <span className="font-medium pr-4" style={{color: 'var(--navy)'}}>
               {item.q}
             </span>
             {openIndex === index ? (

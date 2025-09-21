@@ -54,56 +54,40 @@ export default function Hero() {
 
   return (
     <section className="relative py-24 px-4 bg-[#F7F7F7]">
-      {/* Subtle grid background */}
-      <div 
-        className="absolute inset-0 opacity-20 pointer-events-none"
-        style={{
-          backgroundImage: `
-            repeating-linear-gradient(
-              0deg,
-              transparent,
-              transparent 39px,
-              #8FA573 40px
-            ),
-            repeating-linear-gradient(
-              90deg,
-              transparent,
-              transparent 39px,
-              #8FA573 40px
-            )
-          `,
-        }}
-      />
-      
       <div className="relative max-w-5xl mx-auto text-center">
-        <h1 className="fraunces-font text-5xl md:text-6xl mb-6 leading-tight">
-          <span className="text-[#0B1B2B]">See the Story</span>
-          <span className="block text-[#8FA573]">Not the Spin</span>
+        <h1 className="display-font text-5xl md:text-7xl mb-6 leading-tight">
+          <span style={{color: 'var(--navy)'}}>See the Story,</span>
+          <br />
+          <span style={{color: 'var(--olive)'}}>Not the Spin</span>
         </h1>
 
         <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
-          Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key quotes, and sentiment—so you see the whole picture.
+          Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key points and sentiment so you see the whole picture.
         </p>
 
         <form onSubmit={handleSubmit} className="relative z-10 max-w-2xl mx-auto mb-12">
-          <div className="flex gap-4">
-            <Input
-              type="url"
-              name="url"
-              inputMode="url"
-              autoComplete="off"
-              spellCheck={false}
-              autoFocus
-              placeholder="Paste a news article URL here..."
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              disabled={processUrlMutation.isPending}
-              className="relative flex-1 h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 focus:border-[#A3B18A] bg-white pointer-events-auto z-10"
-            />
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <Input
+                id="url"
+                type="url"
+                name="url"
+                inputMode="url"
+                autoComplete="off"
+                spellCheck={false}
+                autoFocus
+                placeholder="Paste a news article URL here..."
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                disabled={processUrlMutation.isPending}
+                className="w-full h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 bg-white/95 focus:outline-none focus:ring-4 focus:ring-[var(--olive)]/30 focus:border-[var(--olive)] transition-all pointer-events-auto"
+                style={{zIndex: 10, position: 'relative'}}
+              />
+            </div>
             <Button
               type="submit"
               disabled={!url.trim() || processUrlMutation.isPending}
-              className="h-14 px-8 bg-[#8FA573] hover:bg-[#738a5f] text-white font-semibold rounded-2xl"
+              className="btn-olive h-14 px-8 rounded-2xl font-semibold focus-ring"
             >
               {processUrlMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -115,29 +99,25 @@ export default function Hero() {
         </form>
 
         <div className="flex flex-wrap justify-center gap-3 text-sm text-gray-600 mb-4">
-          <div className="flex items-center gap-2 bg-[#A3B18A]/10 px-4 py-2 rounded-full border border-[#A3B18A]/20">
-            <div className="w-2 h-2 bg-[#A3B18A] rounded-full"></div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{backgroundColor: 'var(--sage)', color: 'var(--navy)'}}>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--olive)'}}></div>
             Bias-aware, balanced summaries
           </div>
-          <div className="flex items-center gap-2 bg-[#D9EAF7] px-4 py-2 rounded-full border border-[#D9EAF7]">
-            <div className="w-2 h-2 bg-[#0B1B2B] rounded-full"></div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{backgroundColor: 'var(--sky)', color: 'var(--navy)'}}>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--accent-blue)'}}></div>
             Multiple perspectives
           </div>
-          <div className="flex items-center gap-2 bg-[#A3B18A]/10 px-4 py-2 rounded-full border border-[#A3B18A]/20">
-            <div className="w-2 h-2 bg-[#A3B18A] rounded-full"></div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{backgroundColor: 'var(--sage)', color: 'var(--navy)'}}>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--olive)'}}></div>
             Key quotes & sources
           </div>
-          <div className="flex items-center gap-2 bg-[#FFE8D6] px-4 py-2 rounded-full border border-[#FFE8D6]">
-            <div className="w-2 h-2 bg-[#0B1B2B] rounded-full"></div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{backgroundColor: 'var(--sky)', color: 'var(--navy)'}}>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--accent-red)'}}></div>
             Sentiment & common ground
           </div>
-          <div className="flex items-center gap-2 bg-[#D9EAF7] px-4 py-2 rounded-full border border-[#D9EAF7]">
-            <div className="w-2 h-2 bg-[#0B1B2B] rounded-full"></div>
-            Auto-deletes after 24h · No signup
-          </div>
-          <div className="flex items-center gap-2 bg-[#A3B18A]/10 px-4 py-2 rounded-full border border-[#A3B18A]/20">
-            <div className="w-2 h-2 bg-[#A3B18A] rounded-full"></div>
-            Works on any site
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{backgroundColor: 'var(--sage)', color: 'var(--navy)'}}>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--olive)'}}></div>
+            Works on any site • Auto-deletes after 24h • No signup
           </div>
         </div>
       </div>

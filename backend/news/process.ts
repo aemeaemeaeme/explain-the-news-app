@@ -122,27 +122,61 @@ async function extractTextFromUrl(url: string): Promise<{ text: string; title: s
   try {
     const res = await fetch(url, {
       redirect: "follow",
-      headers: { "User-Agent": "Mozilla/5.0 (ExplainTheNews/1.0)" },
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
     });
     if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
     const html = await res.text();
 
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const metaDescMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i);
     const title = titleMatch?.[1]?.trim() || "Untitled article";
+    const metaDesc = metaDescMatch?.[1]?.trim() || "";
 
-    const text = html
+    // Enhanced text extraction with better content filtering
+    let text = html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+      .replace(/<header[\s\S]*?<\/header>/gi, " ")
+      .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
+      .replace(/<aside[\s\S]*?<\/aside>/gi, " ")
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ")
       .trim();
 
+    // Extract paragraphs and key content
+    const pMatches = html.match(/<p[^>]*>([^<]+)<\/p>/gi);
+    const paragraphText = pMatches ? pMatches.map(p => p.replace(/<[^>]+>/g, " ").trim()).join(" ") : "";
+    
+    if (paragraphText && paragraphText.length > text.length) {
+      text = paragraphText;
+    }
+
+    // Add meta description if text is too short
+    if (text.split(" ").length < 120 && metaDesc) {
+      text = `${metaDesc}. ${text}`;
+    }
+
     if (!text || text.split(" ").length < 60) {
-      return { text: "Content could not be extracted from this URL.", title };
+      // Fallback: use title + meta description + domain context
+      const domain = new URL(url).hostname.replace(/^www\./, "");
+      return { 
+        text: `Article from ${domain}. ${title}. ${metaDesc || "Full content extraction failed - this may be behind a paywall or have anti-bot protection."}`,
+        title 
+      };
     }
     return { text, title };
-  } catch {
-    return { text: "Content could not be extracted from this URL.", title: "Untitled article" };
+  } catch (error) {
+    console.error("Extraction error:", error);
+    const domain = new URL(url).hostname.replace(/^www\./, "");
+    return { 
+      text: `Content extraction failed for ${domain}. Network error or site protection detected.`, 
+      title: "Extraction Failed" 
+    };
   }
 }
 
