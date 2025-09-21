@@ -1,34 +1,49 @@
-import { HelpCircle } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface FollowUpQuestionsProps {
   questions: string[];
 }
 
 export default function FollowUpQuestions({ questions }: FollowUpQuestionsProps) {
-  return (
-    <section className="mt-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        <HelpCircle className="h-5 w-5 text-[#A3B18A]" />
-        Follow-up Questions
-      </h2>
-      <div className="bg-gradient-to-r from-[#A3B18A]/10 to-[#F4C7C3]/10 rounded-xl p-6">
-        <p className="text-sm text-gray-600 mb-4">
-          Curious to learn more? Here are some natural next questions:
-        </p>
-        <ul className="space-y-3">
-          {questions.map((question, index) => (
-            <li key={index} className="text-gray-700 flex items-start gap-2">
-              <span className="text-[#A3B18A] font-bold mt-1">?</span>
-              <span className="leading-relaxed">{question}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-4 p-3 bg-white/50 rounded-lg border border-[#A3B18A]/20">
-          <p className="text-xs text-gray-500 italic">
-            💡 Premium feature: Ask AI follow-up questions about this article
-          </p>
-        </div>
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
+  if (!questions || questions.length === 0) {
+    return (
+      <div className="text-gray-500 italic font-['Inter',system-ui,sans-serif]">
+        No follow-up questions available.
       </div>
-    </section>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {questions.slice(0, 3).map((question, index) => (
+        <div key={index} className="border border-gray-200 rounded-xl overflow-hidden">
+          <button
+            className="w-full px-6 py-4 text-left flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
+            onClick={() => setOpenIndex(openIndex === index ? null : index)}
+          >
+            <span className="font-medium text-gray-900 font-['Inter',system-ui,sans-serif]">
+              {question}
+            </span>
+            {openIndex === index ? (
+              <ChevronUp className="h-5 w-5 text-gray-500" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-gray-500" />
+            )}
+          </button>
+          
+          {openIndex === index && (
+            <div className="px-6 py-4 bg-white border-t border-gray-200">
+              <p className="text-gray-600 font-['Inter',system-ui,sans-serif]">
+                This question helps you think deeper about the article's implications and context. 
+                Consider researching this topic further from multiple sources to develop a well-rounded understanding.
+              </p>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }

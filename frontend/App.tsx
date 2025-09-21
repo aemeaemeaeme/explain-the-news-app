@@ -10,7 +10,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
-        <div className="min-h-screen bg-[#F7F5F2]">
+        <div className="min-h-screen">
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/article/:id" element={<ArticlePage />} />

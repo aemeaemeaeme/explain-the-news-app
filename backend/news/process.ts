@@ -27,7 +27,7 @@ export interface ArticleAnalysis {
     left: number; center: number; right: number;
     confidence: BiasConfidence;
     rationale: string;
-    colors?: { left: string; center: string; right: string };
+    colors: { left: string; center: string; right: string };
   };
   tone: Tone;
   sentiment: { positive: number; neutral: number; negative: number; rationale: string };
@@ -41,38 +41,53 @@ export interface ArticleAnalysis {
 interface ProcessRequest { url: string }
 interface ProcessResponse { success: boolean; id?: string; error?: string }
 
-// ---------------- Minimal utils ----------------
+// ---------------- OpenAI client ----------------
+const openaiApiKey = secret("OpenAIKey");
+
+// ---------------- Utils ----------------
 const isArray = Array.isArray;
 const isString = (v: unknown): v is string => typeof v === "string";
 const toInt = (v: unknown, d = 0) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? n : d;
 };
-const clamp01 = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(n)));
 
-function normalizeBias(leftIn: unknown, centerIn: unknown, rightIn: unknown) {
-  let L = clamp01(toInt(leftIn, 33));
-  let C = clamp01(toInt(centerIn, 34));
-  let R = clamp01(toInt(rightIn, 33));
-  let sum = L + C + R;
-
-  if (sum === 0) { L = 0; C = 100; R = 0; sum = 100; }
-
-  if (sum !== 100) {
-    const scale = 100 / sum;
-    L = Math.round(L * scale);
-    C = Math.round(C * scale);
-    R = 100 - L - C;
-    if (R < 0) { if (L >= C) L += R; else C += R; R = 0; }
+function normalizeBars(a: number, b: number, c: number): { a: number; b: number; c: number } {
+  let total = a + b + c;
+  if (total === 0) { a = 0; b = 100; c = 0; total = 100; }
+  
+  if (total !== 100) {
+    const scale = 100 / total;
+    a = Math.round(a * scale);
+    b = Math.round(b * scale);
+    c = 100 - a - b;
+    if (c < 0) { 
+      if (a >= b) a += c; else b += c; 
+      c = 0; 
+    }
   }
-  return { left: L, center: C, right: R };
+  return { a: Math.max(0, a), b: Math.max(0, b), c: Math.max(0, c) };
 }
 
 function asArray<T>(v: T | T[] | null | undefined): T[] {
   return isArray(v) ? v : v == null ? [] : [v];
 }
 
-// ---------------- Simple extraction (best-effort) ----------------
+function getSourceMix(domain: string, title: string): string {
+  const d = domain.toLowerCase();
+  const t = title.toLowerCase();
+  
+  if (d.includes('reuters') || d.includes('apnews') || d.includes('associatedpress') || d.includes('afp')) {
+    return `Wire service – ${domain}`;
+  }
+  if (t.includes('opinion') || t.includes('op-ed') || t.includes('column') || t.includes('guest essay')) {
+    return `Opinion – ${domain}`;
+  }
+  return `Staff reporting – ${domain}`;
+}
+
+// ---------------- Extraction ----------------
 async function extractTextFromUrl(url: string): Promise<{ text: string; title: string }> {
   try {
     const res = await fetch(url, {
@@ -101,122 +116,114 @@ async function extractTextFromUrl(url: string): Promise<{ text: string; title: s
   }
 }
 
-// ---------------- OpenAI client ----------------
-const openaiApiKey = secret("OpenAIKey");
-const openaiClient = new OpenAI({ apiKey: openaiApiKey() });
-
-// very light sanitizer to guarantee required keys exist
-function sanitizeAnalysis(raw: any, url: string, content: string): ArticleAnalysis {
-  const domain = new URL(url).hostname.replace(/^www\./, "");
-  const wc = content.split(/\s+/).filter(Boolean).length;
-  const biasNorm = normalizeBias(raw?.bias?.left, raw?.bias?.center, raw?.bias?.right);
-
-  const out: ArticleAnalysis = {
-    meta: {
-      title: String(raw?.meta?.title || ""),
-      domain: String(raw?.meta?.domain || domain),
-      byline: String(raw?.meta?.byline || "Unknown"),
-      published_at: String(raw?.meta?.published_at || "unknown"),
-    },
-    tldr: {
-      headline: String(raw?.tldr?.headline || ""),
-      subhead: String(raw?.tldr?.subhead || ""),
-    },
-    eli5: {
-      summary: String(raw?.eli5?.summary || ""),
-      analogy: raw?.eli5?.analogy ? String(raw.eli5.analogy) : undefined,
-    },
-    why_it_matters: asArray<string>(raw?.why_it_matters),
-    key_points: asArray<any>(raw?.key_points)
-      .map(k => ({ text: String(k?.text || ""), tag: (k?.tag as KeyTag) || "fact" }))
-      .filter(k => k.text),
-    perspectives: asArray<any>(raw?.perspectives)
-      .slice(0, 2)
-      .map(p => ({
-        label: String(p?.label || "Perspective"),
-        summary: String(p?.summary || ""),
-        bullets: asArray<string>(p?.bullets).slice(0, 4),
-      })),
-    common_ground: asArray<string>(raw?.common_ground).slice(0, 3),
-    glossary: asArray<any>(raw?.glossary)
-      .map(g => ({ term: String(g?.term || ""), definition: String(g?.definition || ""), link: g?.link ? String(g.link) : undefined }))
-      .filter(g => g.term && g.definition)
-      .slice(0, 6),
-    bias: {
-      left: biasNorm.left,
-      center: biasNorm.center,
-      right: biasNorm.right,
-      confidence: (["low","medium","high"] as BiasConfidence[]).includes(raw?.bias?.confidence) ? raw.bias.confidence : "medium",
-      rationale: String(raw?.bias?.rationale || ""),
-      colors: { left: "#3b82f6", center: "#84a98c", right: "#ef4444" },
-    },
-    tone: (["factual","neutral","opinionated","satirical"] as Tone[]).includes(raw?.tone) ? raw.tone : "factual",
-    sentiment: {
-      positive: clamp01(toInt(raw?.sentiment?.positive, 34)),
-      neutral: clamp01(toInt(raw?.sentiment?.neutral, 34)),
-      negative: clamp01(toInt(raw?.sentiment?.negative, 32)),
-      rationale: String(raw?.sentiment?.rationale || ""),
-    },
-    source_mix: String(raw?.source_mix || ""),
-    reading_time_minutes: Math.max(1, toInt(raw?.reading_time_minutes, Math.ceil(wc / 200))),
-    privacy_note: "Auto-deletes after 24h",
-    follow_up_questions: asArray<string>(raw?.follow_up_questions).slice(0, 3),
-  };
-
-  return out;
-}
-
-// tiny fallback in case all models fail hard
+// ---------------- Mock Analysis Generator ----------------
 function generateMockAnalysis(content: string, url: string): ArticleAnalysis {
   const domain = new URL(url).hostname.replace(/^www\./, "");
   const wc = content.split(/\s+/).filter(Boolean).length || 200;
+  
   return {
-    meta: { title: "Untitled article", domain, byline: "Unknown", published_at: "unknown" },
-    tldr: { headline: "Quick summary unavailable", subhead: "We couldn’t generate a full analysis." },
-    eli5: { summary: "We couldn’t read this page properly. Try another link." },
-    why_it_matters: ["Readers get a fallback instead of an error."],
-    key_points: [{ text: "Analysis failed; fallback used.", tag: "fact" }],
-    perspectives: [
-      { label: "General view", summary: "Not enough data.", bullets: ["Try a different URL", "Or paste full text"] },
-      { label: "Alternate view", summary: "Extraction failed.", bullets: ["Paywall/JS blocked", "Site denied fetch"] }
+    meta: { 
+      title: "News Analysis Unavailable", 
+      domain, 
+      byline: "Unknown", 
+      published_at: "unknown" 
+    },
+    tldr: { 
+      headline: "We couldn't analyze this article fully.", 
+      subhead: "The content may be behind a paywall or blocked from automated analysis." 
+    },
+    eli5: { 
+      summary: "Sometimes websites block our reading robots. It's like trying to read a book through a locked window. We can see there's content there, but we can't get the full story.", 
+      analogy: "It's like trying to read a book through a locked window 🪟" 
+    },
+    why_it_matters: [
+      "Shows how some content is protected from automated access",
+      "Demonstrates the need for direct source reading",
+      "Highlights limitations of AI content analysis",
+      "Reminds us to verify information from original sources"
     ],
-    common_ground: ["The link may block bots", "Text extraction failed"],
-    glossary: [{ term: "Extraction", definition: "Turning a web page into clean text." }],
-    bias: { left: 33, center: 34, right: 33, confidence: "low", rationale: "No content to score", colors: { left: "#3b82f6", center: "#84a98c", right: "#ef4444" } },
+    key_points: [
+      { text: "Content extraction failed", tag: "fact" },
+      { text: "Possible paywall or anti-bot protection", tag: "fact" },
+      { text: "Analysis using fallback data", tag: "timeline" },
+      { text: "User should visit original source", tag: "stakeholders" },
+      { text: "Success rate varies by site", tag: "numbers" },
+      { text: "Technical limitations acknowledged", tag: "fact" }
+    ],
+    perspectives: [
+      { 
+        label: "Technical View", 
+        summary: "Web scraping faces legitimate barriers designed to protect content and server resources.", 
+        bullets: [
+          "Websites implement bot detection for security",
+          "Paywalls protect journalism business models", 
+          "Rate limiting prevents server overload",
+          "Content owners have rights to control access"
+        ] 
+      },
+      { 
+        label: "User View", 
+        summary: "Readers want convenient access to summarized information without technical barriers.", 
+        bullets: [
+          "Users expect instant analysis and summaries",
+          "Manual article reading takes more time",
+          "Original sources remain the authoritative truth",
+          "Multiple perspectives enhance understanding"
+        ] 
+      }
+    ],
+    common_ground: [
+      "Original journalism sources deserve direct traffic and support",
+      "Technology has both capabilities and limitations"
+    ],
+    glossary: [
+      { term: "Paywall", definition: "A digital barrier requiring payment to access content 💰" },
+      { term: "Bot detection", definition: "Systems that identify automated visitors vs humans 🤖" },
+      { term: "Web scraping", definition: "Automated extraction of data from websites 🕷️" },
+      { term: "Rate limiting", definition: "Controlling how fast requests can be made to prevent overload ⏱️" },
+      { term: "Content analysis", definition: "Using AI to understand and summarize written material 📊" }
+    ],
+    bias: { 
+      left: 15, center: 70, right: 15, 
+      confidence: "low", 
+      rationale: "Unable to analyze political lean without full content access",
+      colors: { left: "#3b82f6", center: "#84a98c", right: "#ef4444" }
+    },
     tone: "factual",
-    sentiment: { positive: 0, neutral: 100, negative: 0, rationale: "No sentiment without content" },
-    source_mix: "unknown",
+    sentiment: { 
+      positive: 20, neutral: 60, negative: 20, 
+      rationale: "Neutral technical explanation with acknowledgment of limitations" 
+    },
+    source_mix: getSourceMix(domain, ""),
     reading_time_minutes: Math.max(1, Math.ceil(wc / 200)),
     privacy_note: "Auto-deletes after 24h",
-    follow_up_questions: ["What is the main claim?", "Who is affected?", "What’s the timeline?"],
+    follow_up_questions: [
+      "How can I access the original article?",
+      "What types of sites work best with this tool?",
+      "Are there alternative ways to get article summaries?"
+    ],
   };
 }
 
-// ---------- OpenAI-powered analysis (fixed to use OpenAI SDK) ----------
+// ---------------- AI Analysis (Two-Pass) ----------------
 async function generateAnalysis(content: string, url: string): Promise<ArticleAnalysis> {
-  const domain = new URL(url).hostname;
+  const domain = new URL(url).hostname.replace(/^www\./, "");
   const wordCount = content.split(/\s+/).filter(Boolean).length;
 
   // Check if OpenAI API key is configured
   const apiKey = openaiApiKey();
   if (!apiKey || apiKey.trim() === "") {
-    console.warn("⚠️ OpenAI API key not configured. Using mock fallback.");
+    console.log("news.process: model=mock result=mock id=pending wc=" + wordCount);
     return generateMockAnalysis(content, url);
   }
 
-  const safeContent =
-    content && content !== "Content could not be extracted from this URL."
-      ? content
-      : `No readable text extracted. Domain: ${domain}. Please infer conservatively from metadata and URL only.`;
+  const openaiClient = new OpenAI({ apiKey });
 
-  const systemPrompt = `You are a neutral news explainer. Output MUST be valid JSON per the app schema.
-Rules:
-- Plain text only. NO Markdown, asterisks, emojis, or bullet symbols inside strings.
-- Be specific and grounded in the provided article text. If information is missing, write "unknown".
-- Respect lengths. Do not add extra keys.
-- Bias and sentiment must be integers that sum to 100 each.
-- Exactly two perspectives; 3–6 glossary items; 3–5 why-it-matters; 5–8 key_points.
-Return JSON ONLY.`;
+  const safeContent = content === "Content could not be extracted from this URL." 
+    ? `No readable text extracted. Domain: ${domain}. Please infer conservatively from metadata and URL only.`
+    : content;
+
+  const systemPrompt = `You are a neutral news explainer for a consumer app. Output MUST be valid JSON per the app schema. Plain text only (no Markdown or asterisks). Emojis are allowed. Be specific and grounded in the provided article text; if info is missing, use 'unknown'. Respect lengths. Exactly two perspectives. Bias and sentiment integers must each sum to 100. Return JSON ONLY.`;
 
   const userPrompt = `Summarize and analyze this article for a consumer app. Follow the schema exactly.
 
@@ -224,55 +231,193 @@ Meta:
 Domain: ${domain}
 Byline: unknown
 Published at: unknown
-Approx. word_count: ${wordCount}
+Word count: ${wordCount}
 
-Article text (verbatim or best-effort):
+Article text:
 ${safeContent}
 
-Return JSON only.`;
+Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhead), eli5 (summary/analogy), why_it_matters (4-5 items), key_points (6-8 with tags), perspectives (exactly 2), common_ground (2-3), glossary (5-6 ESL terms), bias (left/center/right/confidence/rationale), sentiment (positive/neutral/negative/rationale), source_mix, tone, reading_time_minutes.`;
 
-  // Use a conservative list—adjust to models enabled on your account
-  const models = ["gpt-4o-mini", "gpt-4o"];
+  let passA: any = null;
+  let passB: any = null;
+  let modelUsed = "mock";
 
-  for (const m of models) {
+  // Pass A: temperature 0.2
+  for (const model of ["gpt-4o-mini", "gpt-4o"]) {
     try {
-      const comp = await openaiClient.chat.completions.create({
-        model: m,
-        temperature: 0.2,
-        max_tokens: 4000,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      });
+      const response = await Promise.race([
+        openaiClient.chat.completions.create({
+          model,
+          temperature: 0.2,
+          max_tokens: 2000,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000))
+      ]);
 
-      const text = comp.choices?.[0]?.message?.content ?? "";
-      console.log(`🧠 Raw AI (${m}) response:`, text.slice(0, 500));
-
-      let raw: any;
+      const text = (response as any).choices?.[0]?.message?.content ?? "";
       try {
-        raw = JSON.parse(text || "{}");
+        passA = JSON.parse(text);
+        modelUsed = model;
+        break;
       } catch {
-        console.error(`❌ ${m} returned invalid JSON. Skipping.`);
+        console.error(`❌ ${model} Pass A returned invalid JSON`);
         continue;
       }
-
-      const cleaned = sanitizeAnalysis(raw, url, content);
-
-      console.log(`✅ AI analysis via ${m}:`, {
-        title: cleaned.meta.title,
-        keyPoints: cleaned.key_points.length,
-        perspectives: cleaned.perspectives.length,
-      });
-
-      return cleaned;
     } catch (err: any) {
-      console.error(`❌ OpenAI ${m} failed:`, err?.message || err);
+      console.error(`❌ ${model} Pass A failed:`, err?.message);
     }
   }
 
-  console.error("⚠️ All AI models failed. Using mock fallback.");
-  return generateMockAnalysis(content, url);
+  // Pass B: temperature 0.5 (only if Pass A succeeded)
+  if (passA) {
+    for (const model of [modelUsed]) { // Use same model as Pass A
+      try {
+        const response = await Promise.race([
+          openaiClient.chat.completions.create({
+            model,
+            temperature: 0.5,
+            max_tokens: 2000,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000))
+        ]);
+
+        const text = (response as any).choices?.[0]?.message?.content ?? "";
+        try {
+          passB = JSON.parse(text);
+          break;
+        } catch {
+          console.error(`❌ ${model} Pass B returned invalid JSON`);
+        }
+      } catch (err: any) {
+        console.error(`❌ ${model} Pass B failed:`, err?.message);
+      }
+    }
+  }
+
+  if (!passA) {
+    console.log(`news.process: model=mock result=mock id=pending wc=${wordCount}`);
+    return generateMockAnalysis(content, url);
+  }
+
+  // Average bias and sentiment if we have both passes
+  let biasLeft = toInt(passA?.bias?.left, 33);
+  let biasCenter = toInt(passA?.bias?.center, 34);
+  let biasRight = toInt(passA?.bias?.right, 33);
+  let sentPos = toInt(passA?.sentiment?.positive, 34);
+  let sentNeu = toInt(passA?.sentiment?.neutral, 34);
+  let sentNeg = toInt(passA?.sentiment?.negative, 32);
+  
+  let maxDiff = 0;
+  if (passB) {
+    const bLeftB = toInt(passB?.bias?.left, 33);
+    const bCenterB = toInt(passB?.bias?.center, 34);
+    const bRightB = toInt(passB?.bias?.right, 33);
+    const sPosB = toInt(passB?.sentiment?.positive, 34);
+    const sNeuB = toInt(passB?.sentiment?.neutral, 34);
+    const sNegB = toInt(passB?.sentiment?.negative, 32);
+    
+    // Calculate max difference for confidence
+    maxDiff = Math.max(
+      Math.abs(biasLeft - bLeftB),
+      Math.abs(biasCenter - bCenterB),
+      Math.abs(biasRight - bRightB),
+      Math.abs(sentPos - sPosB),
+      Math.abs(sentNeu - sNeuB),
+      Math.abs(sentNeg - sNegB)
+    );
+    
+    // Average the values
+    biasLeft = Math.round((biasLeft + bLeftB) / 2);
+    biasCenter = Math.round((biasCenter + bCenterB) / 2);
+    biasRight = Math.round((biasRight + bRightB) / 2);
+    sentPos = Math.round((sentPos + sPosB) / 2);
+    sentNeu = Math.round((sentNeu + sNeuB) / 2);
+    sentNeg = Math.round((sentNeg + sNegB) / 2);
+  }
+
+  // Normalize bias and sentiment
+  const normalizedBias = normalizeBars(biasLeft, biasCenter, biasRight);
+  const normalizedSent = normalizeBars(sentPos, sentNeu, sentNeg);
+
+  // Determine confidence
+  let confidence: BiasConfidence = "medium";
+  if (wordCount < 300 || maxDiff > 12) {
+    confidence = "low";
+  } else if (wordCount > 1000 && maxDiff < 5) {
+    confidence = "high";
+  }
+
+  // Sanitize and build final analysis
+  const analysis: ArticleAnalysis = {
+    meta: {
+      title: String(passA?.meta?.title || passA?.title || "Untitled article"),
+      domain,
+      byline: String(passA?.meta?.byline || "Unknown"),
+      published_at: String(passA?.meta?.published_at || "unknown"),
+    },
+    tldr: {
+      headline: String(passA?.tldr?.headline || "Summary unavailable"),
+      subhead: String(passA?.tldr?.subhead || "Please try another article"),
+    },
+    eli5: {
+      summary: String(passA?.eli5?.summary || "Analysis not available"),
+      analogy: passA?.eli5?.analogy ? String(passA.eli5.analogy) : undefined,
+    },
+    why_it_matters: asArray<string>(passA?.why_it_matters).slice(0, 5).filter(x => x),
+    key_points: asArray<any>(passA?.key_points)
+      .slice(0, 8)
+      .map(k => ({ 
+        text: String(k?.text || ""), 
+        tag: (["fact","timeline","stakeholders","numbers"].includes(k?.tag) ? k.tag : "fact") as KeyTag 
+      }))
+      .filter(k => k.text),
+    perspectives: asArray<any>(passA?.perspectives)
+      .slice(0, 2)
+      .map(p => ({
+        label: String(p?.label || "Perspective"),
+        summary: String(p?.summary || ""),
+        bullets: asArray<string>(p?.bullets).slice(0, 4).filter(x => x),
+      })),
+    common_ground: asArray<string>(passA?.common_ground).slice(0, 3).filter(x => x),
+    glossary: asArray<any>(passA?.glossary)
+      .slice(0, 6)
+      .map(g => ({ 
+        term: String(g?.term || ""), 
+        definition: String(g?.definition || ""),
+        link: g?.link ? String(g.link) : undefined 
+      }))
+      .filter(g => g.term && g.definition),
+    bias: {
+      left: normalizedBias.a,
+      center: normalizedBias.b,
+      right: normalizedBias.c,
+      confidence,
+      rationale: String(passA?.bias?.rationale || "Analysis based on content tone and framing"),
+      colors: { left: "#3b82f6", center: "#84a98c", right: "#ef4444" },
+    },
+    tone: (["factual","neutral","opinionated","satirical"].includes(passA?.tone) ? passA.tone : "factual") as Tone,
+    sentiment: {
+      positive: normalizedSent.a,
+      neutral: normalizedSent.b,
+      negative: normalizedSent.c,
+      rationale: String(passA?.sentiment?.rationale || "Based on language and framing analysis"),
+    },
+    source_mix: getSourceMix(domain, passA?.meta?.title || ""),
+    reading_time_minutes: Math.max(1, Math.ceil(wordCount / 200)),
+    privacy_note: "Auto-deletes after 24h",
+    follow_up_questions: asArray<string>(passA?.follow_up_questions).slice(0, 3).filter(x => x),
+  };
+
+  console.log(`news.process: model=${modelUsed} result=ok id=pending wc=${wordCount}`);
+  return analysis;
 }
 
 // ---------------- Endpoint ----------------
@@ -288,7 +433,7 @@ export const process = api<ProcessRequest, ProcessResponse>(
     // Generate a unique ID for this article
     const articleId = randomUUID();
 
-    // Persist into `articles` (columns your get.ts expects)
+    // Persist into `articles` table
     const whyJson = JSON.stringify(analysis.why_it_matters || []);
     const pointsJson = JSON.stringify(analysis.key_points || []);
     const perspectivesJson = JSON.stringify(analysis.perspectives || []);
@@ -296,57 +441,60 @@ export const process = api<ProcessRequest, ProcessResponse>(
     const glossaryJson = JSON.stringify(analysis.glossary || []);
     const followupsJson = JSON.stringify(analysis.follow_up_questions || []);
 
-    const rows = await db.query/*sql*/`
-      INSERT INTO articles (
-        id, url, title, content,
-        tldr_headline, tldr_subhead,
-        eli5_summary, eli5_analogy,
-        why_it_matters, key_points,
-        bias_left, bias_center, bias_right, bias_confidence, bias_rationale,
-        perspectives, common_ground, glossary,
-        tone, sentiment_positive, sentiment_neutral, sentiment_negative, sentiment_rationale,
-        source_mix, reading_time, domain, byline, published_at, follow_up_questions
-      ) VALUES (
-        ${articleId},
-        ${url},
-        ${analysis.meta.title || extracted.title},
-        ${extracted.text},
-        ${analysis.tldr.headline},
-        ${analysis.tldr.subhead},
-        ${analysis.eli5.summary},
-        ${analysis.eli5.analogy ?? null},
-        ${whyJson},
-        ${pointsJson},
-        ${analysis.bias.left},
-        ${analysis.bias.center},
-        ${analysis.bias.right},
-        ${analysis.bias.confidence},
-        ${analysis.bias.rationale},
-        ${perspectivesJson},
-        ${commonJson},
-        ${glossaryJson},
-        ${analysis.tone},
-        ${analysis.sentiment.positive},
-        ${analysis.sentiment.neutral},
-        ${analysis.sentiment.negative},
-        ${analysis.sentiment.rationale},
-        ${analysis.source_mix},
-        ${analysis.reading_time_minutes},
-        ${analysis.meta.domain},
-        ${analysis.meta.byline},
-        ${analysis.meta.published_at},
-        ${followupsJson}
-      )
-      RETURNING id
-    `;
+    try {
+      const rows = await db.query/*sql*/`
+        INSERT INTO articles (
+          id, url, title, content,
+          tldr_headline, tldr_subhead,
+          eli5_summary, eli5_analogy,
+          why_it_matters, key_points,
+          bias_left, bias_center, bias_right, bias_confidence, bias_rationale,
+          perspectives, common_ground, glossary,
+          tone, sentiment_positive, sentiment_neutral, sentiment_negative, sentiment_rationale,
+          source_mix, reading_time, domain, byline, published_at, follow_up_questions
+        ) VALUES (
+          ${articleId},
+          ${url},
+          ${analysis.meta.title || extracted.title},
+          ${extracted.text},
+          ${analysis.tldr.headline},
+          ${analysis.tldr.subhead},
+          ${analysis.eli5.summary},
+          ${analysis.eli5.analogy ?? null},
+          ${whyJson},
+          ${pointsJson},
+          ${analysis.bias.left},
+          ${analysis.bias.center},
+          ${analysis.bias.right},
+          ${analysis.bias.confidence},
+          ${analysis.bias.rationale},
+          ${perspectivesJson},
+          ${commonJson},
+          ${glossaryJson},
+          ${analysis.tone},
+          ${analysis.sentiment.positive},
+          ${analysis.sentiment.neutral},
+          ${analysis.sentiment.negative},
+          ${analysis.sentiment.rationale},
+          ${analysis.source_mix},
+          ${analysis.reading_time_minutes},
+          ${analysis.meta.domain},
+          ${analysis.meta.byline},
+          ${analysis.meta.published_at},
+          ${followupsJson}
+        )
+        RETURNING id
+      `;
 
-    const rowsArray = [];
-    for await (const row of rows) {
-      rowsArray.push(row);
+      const rowsArray = [];
+      for await (const row of rows) {
+        rowsArray.push(row);
+      }
+      
+      return { success: true, id: articleId };
+    } catch (error) {
+      console.error("Database error:", error);
+      return { success: false, error: "Failed to save article" };
     }
-    const id = rowsArray?.[0]?.id as string | undefined;
-    if (!id) return { success: false, error: "Failed to save article" };
-
-    return { success: true, id: articleId };
   }
 );

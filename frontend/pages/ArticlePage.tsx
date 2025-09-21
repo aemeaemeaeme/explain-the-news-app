@@ -17,15 +17,13 @@ export default function ArticlePage() {
     error,
   } = useQuery({
     queryKey: ['article', id],
-    // ✅ unwrap the backend response so we return Article (not { article: Article })
     queryFn: async (): Promise<Article> => {
       if (!id) throw new Error('No article ID provided');
-      const res = await backend.news.getArticle({ id }); // { article: Article | null }
+      const res = await backend.news.getArticle({ id });
       if (!res || !res.article) throw new Error('Article not found or expired');
-      return res.article; // <-- return the actual Article
+      return res.article;
     },
     enabled: !!id,
-    // optional, but helps ensure you always see fresh data:
     staleTime: 0,
     gcTime: 0,
     refetchOnWindowFocus: false,
@@ -33,30 +31,56 @@ export default function ArticlePage() {
 
   if (isLoading || isFetching) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="min-h-screen bg-[#F7F5F2] font-['Inter',system-ui,sans-serif]">
+        <Header />
+        <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
       </div>
     );
   }
 
   if (error || !article) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <ErrorMessage
-          title="Article Not Found"
-          message="This article may have expired or doesn't exist."
-        />
+      <div className="min-h-screen bg-[#F7F5F2] font-['Inter',system-ui,sans-serif]">
+        <Header />
+        <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
+          <ErrorMessage
+            title="Article Not Found"
+            message="This article may have expired or doesn't exist."
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-[#F7F5F2] font-['Inter',system-ui,sans-serif]">
+      {/* Subtle grid background */}
+      <div 
+        className="fixed inset-0 opacity-10 pointer-events-none"
+        style={{
+          backgroundImage: `
+            repeating-linear-gradient(
+              0deg,
+              transparent,
+              transparent 39px,
+              #A3B18A 40px
+            ),
+            repeating-linear-gradient(
+              90deg,
+              transparent,
+              transparent 39px,
+              #A3B18A 40px
+            )
+          `,
+        }}
+      />
+      
       <Header />
-      <main className="max-w-4xl mx-auto px-4 py-12">
-        {/* ✅ ArticleCard now receives a real Article */}
+      <main className="relative px-4 py-12">
         <ArticleCard article={article} />
       </main>
-    </>
+    </div>
   );
 }

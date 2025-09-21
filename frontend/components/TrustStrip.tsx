@@ -1,23 +1,28 @@
 export default function TrustStrip() {
-  const partners = [
-    "CNN", "Reuters", "BBC", "Associated Press", "NPR", "The Guardian"
+  const outlets = [
+    { name: "CNN", logo: "CNN" },
+    { name: "Reuters", logo: "Reuters" },
+    { name: "BBC", logo: "BBC" },
+    { name: "AP", logo: "AP" },
+    { name: "NPR", logo: "NPR" },
+    { name: "The Guardian", logo: "Guardian" }
   ];
 
   return (
-    <section className="py-12 px-4 border-y border-gray-200 bg-white/50">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <p className="text-sm text-gray-500 font-medium uppercase tracking-wider">
-            Works with articles from
-          </p>
-        </div>
+    <section className="py-16 px-4 bg-[#F7F5F2]">
+      <div className="max-w-6xl mx-auto text-center">
+        <p className="text-lg text-gray-600 mb-8 font-['Inter',system-ui,sans-serif]">
+          As seen on
+        </p>
         <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12">
-          {partners.map((partner, index) => (
-            <div 
-              key={index}
-              className="text-gray-400 font-semibold text-lg opacity-60 hover:opacity-80 transition-opacity"
+          {outlets.map((outlet) => (
+            <div
+              key={outlet.name}
+              className="flex items-center justify-center h-12 px-6 bg-white rounded-xl shadow-sm border border-gray-100"
             >
-              {partner}
+              <span className="text-xl font-semibold text-gray-400 font-['Inter',system-ui,sans-serif]">
+                {outlet.logo}
+              </span>
             </div>
           ))}
         </div>

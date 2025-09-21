@@ -12,14 +12,8 @@ export default function Hero() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Call the backend news.process endpoint
-  async function processArticle(url: string) {
-    const res = await backend.news.process({ url });
-    return res;
-  }
-
   const processUrlMutation = useMutation({
-    mutationFn: (url: string) => processArticle(url),
+    mutationFn: (url: string) => backend.news.process({ url }),
     onSuccess: (response) => {
       if (response.success && response.id) {
         navigate(`/article/${response.id}`);
@@ -63,20 +57,41 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative py-24 px-4">
-      <div className="max-w-5xl mx-auto text-center">
+    <section className="relative py-24 px-4 bg-[#F7F5F2]">
+      {/* Subtle grid background */}
+      <div 
+        className="absolute inset-0 opacity-20"
+        style={{
+          backgroundImage: `
+            repeating-linear-gradient(
+              0deg,
+              transparent,
+              transparent 39px,
+              #A3B18A 40px
+            ),
+            repeating-linear-gradient(
+              90deg,
+              transparent,
+              transparent 39px,
+              #A3B18A 40px
+            )
+          `,
+        }}
+      />
+      
+      <div className="relative max-w-5xl mx-auto text-center">
         <div className="flex justify-center mb-8">
           <div className="p-4 bg-white rounded-full shadow-lg">
             <Newspaper className="h-12 w-12 text-[#A3B18A]" />
           </div>
         </div>
 
-        <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+        <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight font-['Inter',system-ui,sans-serif]">
           Understand News
           <span className="block text-[#A3B18A]">In Seconds</span>
         </h1>
 
-        <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
+        <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed font-['Inter',system-ui,sans-serif]">
           Paste any news article and get instant AI-powered summaries, bias analysis,
           multiple perspectives, and key insights. Perfect for staying informed without the overwhelm.
         </p>
@@ -88,13 +103,13 @@ export default function Hero() {
               placeholder="Paste a news article URL here..."
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="flex-1 h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 focus:border-[#A3B18A] bg-white"
+              className="flex-1 h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 focus:border-[#A3B18A] bg-white font-['Inter',system-ui,sans-serif]"
               disabled={processUrlMutation.isPending}
             />
             <Button
               type="submit"
               disabled={!url.trim() || processUrlMutation.isPending}
-              className="h-14 px-8 bg-[#A3B18A] hover:bg-[#8fa573] text-white font-semibold rounded-2xl"
+              className="h-14 px-8 bg-[#A3B18A] hover:bg-[#8fa573] text-white font-semibold rounded-2xl font-['Inter',system-ui,sans-serif]"
             >
               {processUrlMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -105,7 +120,7 @@ export default function Hero() {
           </div>
         </form>
 
-        <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-500">
+        <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-500 font-['Inter',system-ui,sans-serif]">
           <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm">
             <div className="w-2 h-2 bg-[#A3B18A] rounded-full"></div>
             Neutral summaries
