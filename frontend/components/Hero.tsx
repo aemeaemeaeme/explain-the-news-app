@@ -18,7 +18,6 @@ export default function Hero() {
   const location = useLocation();
   const { toast } = useToast();
 
-  // Open paste-text modal when navigated with state
   useEffect(() => {
     if (location.state?.showPasteModal) {
       setShowPasteModal(true);
@@ -54,7 +53,6 @@ export default function Hero() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim()) return;
-
     try {
       new URL(url);
       processUrlMutation.mutate({ url });
@@ -80,12 +78,8 @@ export default function Hero() {
           <span style={{ color: 'var(--sage)', fontWeight: 'bold' }}>Not the Spin</span>
         </h1>
 
-        <p
-          className="text-xl mb-12 max-w-3xl mx-auto leading-relaxed"
-          style={{ color: 'var(--gray-600)' }}
-        >
-          Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key
-          points and sentiment so you see the whole picture.
+        <p className="text-xl mb-12 max-w-3xl mx-auto leading-relaxed" style={{ color: 'var(--gray-600)' }}>
+          Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key points and sentiment so you see the whole picture.
         </p>
 
         <form onSubmit={handleSubmit} className="relative z-10 max-w-2xl mx-auto mb-8">
@@ -103,28 +97,20 @@ export default function Hero() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 disabled={processUrlMutation.isPending}
-                className="w-full h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 bg-white/95 transition-all pointer-events-auto focus-ring"
+                className="w-full h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 bg-white/95 focus:outline-none focus:ring-4 focus:ring-[var(--sage)]/30 focus:border-[var(--sage)] transition-all pointer-events-auto"
                 style={{ zIndex: 10, position: 'relative' }}
-                aria-label="News article URL"
               />
             </div>
-
             <Button
               type="submit"
               disabled={!url.trim() || processUrlMutation.isPending}
-              className="btn-sage h-14 px-8 headline-font text-base font-bold shadow-sm focus-ring"
-              aria-label="Explain this article"
+              className="btn-sage h-14 px-8 font-semibold focus-ring"
             >
-              {processUrlMutation.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                'Explain It'
-              )}
+              {processUrlMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Explain It'}
             </Button>
           </div>
         </form>
 
-        {/* Alternative option */}
         <div className="max-w-2xl mx-auto mb-12">
           <div className="flex items-center justify-center gap-4 mb-4">
             <div className="h-px bg-gray-300 flex-1" />
@@ -136,61 +122,46 @@ export default function Hero() {
             variant="outline"
             onClick={() => setShowPasteModal(true)}
             disabled={processUrlMutation.isPending}
-            className="btn-blush w-full h-12 text-base font-semibold focus-ring"
+            className="w-full h-12 text-base border-2 border-gray-200 bg-white/95 hover:bg-gray-50 transition-all"
           >
             <FileText className="h-5 w-5 mr-2" />
             Paste Article Text Instead
           </Button>
         </div>
 
-        {/* Feature chips */}
-        <div
-          className="flex flex-wrap justify-center gap-3 text-sm mb-4"
-          style={{ color: 'var(--gray-600)' }}
-        >
+        <div className="flex flex-wrap justify-center gap-3 text-sm mb-4" style={{ color: 'var(--gray-600)' }}>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
             Bias-aware
           </div>
-
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-peach">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#3b82f6' }} />
             Balanced summaries
           </div>
-
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-sky">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#ec4899' }} />
             Multiple perspectives
           </div>
-
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#84cc16' }} />
-            Key quotes &amp; sources
+            Key quotes & sources
           </div>
-
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-blush">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#a855f7' }} />
-            Sentiment &amp; common ground
+            Sentiment & common ground
           </div>
-
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#f97316' }} />
             Works on most sites
           </div>
-
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-peach">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#06b6d4' }} />
             Auto-deletes after 24h
           </div>
         </div>
       </div>
 
-      <PaywallModal
-        isOpen={showPaywall}
-        onClose={() => setShowPaywall(false)}
-        resetTime={resetTime}
-      />
-
+      <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} resetTime={resetTime} />
       <PasteTextModal
         isOpen={showPasteModal}
         onClose={() => setShowPasteModal(false)}
