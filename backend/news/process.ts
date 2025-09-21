@@ -1,15 +1,28 @@
 import { api } from "encore.dev/api";
 import { secret } from "encore.dev/config";
-import { Header } from "encore.dev/api";
 import db from "../db";
-import OpenAI from "openai";
 import { randomUUID } from "crypto";
 import { memoryStore } from "./store";
 
 /**
  * Exposes endpoint as `news.process` so the frontend call
  * `backend.news.process({ url })` works.
+ *
+ * This version uses **Gemini only**. If Gemini isn't available,
+ * it falls back to a deterministic mock (no OpenAI anywhere).
  */
+
+// --------- Gemini dynamic import (safe if package missing) ----------
+let GoogleGenerativeAI: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const geminiModule = require("@google/generative-ai");
+  GoogleGenerativeAI = geminiModule.GoogleGenerativeAI;
+} catch (err) {
+  console.warn("Google Generative AI package not available:", err);
+}
+
+const geminiApiKey = secret("GEMINI_API_KEY");
 
 // ---------------- Types that match your frontend/get.ts ----------------
 type Tone = "factual" | "neutral" | "opinionated" | "satirical";
@@ -53,9 +66,6 @@ interface ProcessResponse {
   resetTime?: number;
 }
 
-// ---------------- OpenAI client ----------------
-const openaiApiKey = secret("OpenAIKey");
-
 // ---------------- Utils ----------------
 const isArray = Array.isArray;
 const isString = (v: unknown): v is string => typeof v === "string";
@@ -68,7 +78,6 @@ const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(ma
 function normalizeBars(a: number, b: number, c: number): { a: number; b: number; c: number } {
   let total = a + b + c;
   if (total === 0) { a = 0; b = 100; c = 0; total = 100; }
-  
   if (total !== 100) {
     const scale = 100 / total;
     a = Math.round(a * scale);
@@ -88,38 +97,21 @@ function asArray<T>(v: T | T[] | null | undefined): T[] {
 
 function sanitizeTitle(title: string, domain: string): string {
   let cleanTitle = title.trim();
-  
-  // Remove common domain suffixes from titles
   const patterns = [
-    / - CNN$/i,
-    / \| Reuters$/i,
-    / \(AP\)$/i,
-    / - Associated Press$/i,
-    / - NPR$/i,
-    / - BBC$/i,
-    / - The Guardian$/i,
-    / - Washington Post$/i,
-    / - New York Times$/i,
-    / - NBC News$/i,
-    / - ABC News$/i,
-    / - CBS News$/i,
-    / - Fox News$/i,
+    / - CNN$/i, / \| Reuters$/i, / \(AP\)$/i, / - Associated Press$/i, / - NPR$/i,
+    / - BBC$/i, / - The Guardian$/i, / - Washington Post$/i, / - New York Times$/i,
+    / - NBC News$/i, / - ABC News$/i, / - CBS News$/i, / - Fox News$/i,
     new RegExp(` - ${domain}$`, 'i'),
-    new RegExp(` \| ${domain}$`, 'i'),
-    new RegExp(` \(${domain}\)$`, 'i')
+    new RegExp(` \\| ${domain}$`, 'i'),
+    new RegExp(` \\(${domain}\\)$`, 'i')
   ];
-  
-  for (const pattern of patterns) {
-    cleanTitle = cleanTitle.replace(pattern, '');
-  }
-  
+  for (const pattern of patterns) cleanTitle = cleanTitle.replace(pattern, '');
   return cleanTitle.trim();
 }
 
 function getSourceMix(domain: string, title: string): string {
   const d = domain.toLowerCase();
   const t = title.toLowerCase();
-  
   if (d.includes('reuters') || d.includes('apnews') || d.includes('associatedpress') || d.includes('afp')) {
     return `Wire service – ${domain}`;
   }
@@ -132,13 +124,10 @@ function getSourceMix(domain: string, title: string): string {
 // ---------------- Extraction ----------------
 async function extractTextFromUrl(url: string): Promise<{ text: string; title: string; confidence: string; status: string }> {
   try {
-    // Use the new extraction service
     const extractionResult = await (await import('./fetch')).fetchArticle({ url });
-    
-    // Map the new response format
-    const confidence = extractionResult.status === "ok" ? 
-      (extractionResult.text.length > 1500 ? "high" : "medium") : "low";
-    
+    const confidence = extractionResult.status === "ok"
+      ? (extractionResult.text.length > 1500 ? "high" : "medium")
+      : "low";
     return {
       text: extractionResult.text,
       title: extractionResult.title,
@@ -161,19 +150,18 @@ async function extractTextFromUrl(url: string): Promise<{ text: string; title: s
 function generateMockAnalysis(content: string, url: string, extractionConfidence: string = "low"): ArticleAnalysis {
   const domain = new URL(url).hostname.replace(/^www\./, "");
   const wc = content.split(/\s+/).filter(Boolean).length || 200;
-  
-  // Generate more varied numbers for low confidence
+
   const biasVariance = extractionConfidence === "low" ? 15 : 10;
   const sentimentVariance = extractionConfidence === "low" ? 20 : 15;
-  
+
   const biasLeft = Math.max(10, Math.min(40, 25 + (Math.random() - 0.5) * biasVariance));
   const biasRight = Math.max(10, Math.min(40, 25 + (Math.random() - 0.5) * biasVariance));
   const biasCenter = 100 - biasLeft - biasRight;
-  
+
   const sentPos = Math.max(15, Math.min(50, 30 + (Math.random() - 0.5) * sentimentVariance));
   const sentNeg = Math.max(15, Math.min(40, 25 + (Math.random() - 0.5) * sentimentVariance));
   const sentNeu = 100 - sentPos - sentNeg;
-  
+
   return {
     meta: { 
       title: content.includes("extraction failed") ? "News Analysis Unavailable" : "Content Analysis Limited", 
@@ -278,137 +266,119 @@ function generateMockAnalysis(content: string, url: string, extractionConfidence
   };
 }
 
-// ---------------- AI Analysis (Two-Pass) ----------------
+// ---------------- Gemini JSON helper ----------------
+function cleanJsonBlocks(text: string): string {
+  let t = text.trim();
+  if (t.startsWith("```json")) t = t.replace(/^```json\s*/i, "").replace(/\s*```$/i, "");
+  else if (t.startsWith("```")) t = t.replace(/^```\s*/i, "").replace(/\s*```$/i, "");
+  return t.trim();
+}
+
+// ---------------- AI Analysis (Gemini, two-pass) ----------------
 async function generateAnalysis(content: string, url: string, extractionConfidence: string = "medium"): Promise<ArticleAnalysis> {
   const domain = new URL(url).hostname.replace(/^www\./, "");
   const wordCount = content.split(/\s+/).filter(Boolean).length;
 
-  // Check if OpenAI API key is configured
-  const apiKey = openaiApiKey();
-  if (!apiKey || apiKey.trim() === "") {
-    console.log("news.process: model=mock result=mock id=pending wc=" + wordCount);
+  const apiKey = geminiApiKey();
+  const haveGemini = !!GoogleGenerativeAI && !!apiKey;
+
+  if (!haveGemini) {
+    console.log(`news.process: provider=mock reason=${!GoogleGenerativeAI ? "no_pkg" : "no_key"} wc=${wordCount}`);
     return generateMockAnalysis(content, url, extractionConfidence);
   }
 
-  const openaiClient = new OpenAI({ apiKey });
+  const safeContent =
+    content === "Content could not be extracted from this URL." || content.toLowerCase().includes("extraction failed")
+      ? `No readable text extracted. Domain: ${domain}. Please infer conservatively from metadata and URL only.`
+      : content;
 
-  const safeContent = content === "Content could not be extracted from this URL." || content.includes("extraction failed")
-    ? `No readable text extracted. Domain: ${domain}. Please infer conservatively from metadata and URL only.`
-    : content;
-
-  const systemPrompt = `You are a neutral news explainer for a consumer app. Output MUST be valid JSON per the app schema. Plain text only (no Markdown or asterisks). Emojis are allowed. Be specific and grounded in the provided article text; if info is missing, use 'unknown'. 
-
-CRITICAL: Avoid static fallback values. Bias and sentiment integers must sum to 100 but MUST NOT be 33/34/33 or 20/60/20 unless the article is genuinely balanced/neutral. Provide meaningful variance based on actual content analysis.
-
-Extraction confidence is ${extractionConfidence}. If confidence is low, bias should trend toward center (50-70%) and sentiment toward neutral (40-65%), but still vary naturally.
-
+  const systemPrompt = `You are a neutral news explainer for a consumer app. Output MUST be valid JSON per the app schema. Plain text only (no Markdown fences). Emojis are allowed. Be specific and grounded in the provided article text; if info is missing, use "unknown".
+CRITICAL: Avoid static fallback values. Bias and sentiment integers must sum to 100 but MUST NOT be 33/34/33 or 20/60/20 unless truly warranted.
+Extraction confidence is ${extractionConfidence}. If confidence is low, bias should trend toward center (50-70%) and sentiment toward neutral (40-65%), with natural variance.
 Return JSON ONLY.`;
 
   const userPrompt = `Summarize and analyze this article for a consumer app. Follow the schema exactly.
 
 CRITICAL REQUIREMENTS:
-- tldr.paragraphs: EXACTLY 3-5 rich, informative sentences (not single lines)
-- eli5.summary: EXACTLY 4-6 sentences, kid-friendly tone, plus analogy sentence
-- why_it_matters: EXACTLY 4-6 bullets explaining significance
+- tldr.paragraphs: EXACTLY 3-5 rich, informative sentences
+- eli5.summary: EXACTLY 4-6 sentences, kid-friendly tone, plus one analogy sentence
+- why_it_matters: EXACTLY 4-6 bullets
 - key_points: EXACTLY 6-10 bullets with tags from: fact, timeline, stakeholders, numbers
-- perspectives: EXACTLY 2 perspectives, each with label, 2-3 sentence summary, 4+ bullets
-- common_ground: EXACTLY 3 bullets showing shared agreements
-- glossary: EXACTLY 5-8 items (ESL-friendly, avoid jargon)
-- follow_up_questions: EXACTLY 3-5 questions with one-sentence answers as [{"q": "question", "a": "answer"}]
-- bias: left/center/right integers must sum to 100, provide short rationale, vary based on content
-- sentiment: positive/neutral/negative integers must sum to 100, non-static distribution
+- perspectives: EXACTLY 2 items, each with label, 2-3 sentence summary, and 4+ bullets
+- common_ground: EXACTLY 3 bullets
+- glossary: EXACTLY 5-8 items (ESL-friendly)
+- follow_up_questions: EXACTLY 3-5 Q&A items [{"q": "...", "a": "..."}]
+- bias: left/center/right integers sum to 100, with short rationale
+- sentiment: positive/neutral/negative integers sum to 100, with rationale
 
-Title cleaning: Remove domain suffixes like "– CNN", "| Reuters", "(AP)" from title
-Confidence: ${extractionConfidence}
+Title cleaning: Remove domain suffixes like "– CNN", "| Reuters", "(AP)".
 
 Meta:
 Domain: ${domain}
-Byline: extract from text or "unknown"
-Published at: extract from text or "unknown" 
 Word count: ${wordCount}
+Confidence: ${extractionConfidence}
 
 Article text:
 ${safeContent}
 
 Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhead/paragraphs), eli5 (summary/analogy), why_it_matters, key_points, perspectives, common_ground, glossary, bias (left/center/right/confidence/rationale), sentiment (positive/neutral/negative/rationale), tone, follow_up_questions.`;
 
+  const modelName = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  const client = new GoogleGenerativeAI(apiKey);
+  const gen = (temperature: number) =>
+    client.getGenerativeModel({
+      model: modelName,
+      generationConfig: {
+        temperature,
+        maxOutputTokens: 2200
+      }
+    });
+
   let passA: any = null;
   let passB: any = null;
-  let modelUsed = "mock";
+  let modelUsed = modelName;
 
-  // Pass A: temperature 0.2
-  for (const model of ["gpt-4o-mini", "gpt-4o"]) {
-    try {
-      const response = await Promise.race([
-        openaiClient.chat.completions.create({
-          model,
-          temperature: 0.2,
-          max_tokens: 2000,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000))
-      ]);
-
-      const text = (response as any).choices?.[0]?.message?.content ?? "";
-      try {
-        passA = JSON.parse(text);
-        modelUsed = model;
-        break;
-      } catch {
-        console.error(`❌ ${model} Pass A returned invalid JSON`);
-        continue;
-      }
-    } catch (err: any) {
-      console.error(`❌ ${model} Pass A failed:`, err?.message);
-    }
+  // Pass A (cool)
+  try {
+    const resp = await Promise.race([
+      gen(0.2).generateContent(`${systemPrompt}\n\n${userPrompt}`),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("gemini_timeout_passA")), 15000)),
+    ]);
+    const text = (resp as any).response?.text?.() ?? (resp as any).response?.text?.() ?? "";
+    const clean = cleanJsonBlocks(String(text || ""));
+    passA = JSON.parse(clean);
+  } catch (err: any) {
+    console.error("Gemini Pass A failed:", err?.message || err);
   }
 
-  // Pass B: temperature 0.5 (only if Pass A succeeded)
+  // Pass B (warmer) only if A succeeded
   if (passA) {
-    for (const model of [modelUsed]) { // Use same model as Pass A
-      try {
-        const response = await Promise.race([
-          openaiClient.chat.completions.create({
-            model,
-            temperature: 0.5,
-            max_tokens: 2000,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-          }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000))
-        ]);
-
-        const text = (response as any).choices?.[0]?.message?.content ?? "";
-        try {
-          passB = JSON.parse(text);
-          break;
-        } catch {
-          console.error(`❌ ${model} Pass B returned invalid JSON`);
-        }
-      } catch (err: any) {
-        console.error(`❌ ${model} Pass B failed:`, err?.message);
-      }
+    try {
+      const resp = await Promise.race([
+        gen(0.5).generateContent(`${systemPrompt}\n\n${userPrompt}`),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("gemini_timeout_passB")), 15000)),
+      ]);
+      const text = (resp as any).response?.text?.() ?? "";
+      const clean = cleanJsonBlocks(String(text || ""));
+      passB = JSON.parse(clean);
+    } catch (err: any) {
+      console.error("Gemini Pass B failed:", err?.message || err);
     }
   }
 
   if (!passA) {
-    console.log(`news.process: model=mock result=mock id=pending wc=${wordCount}`);
+    console.log(`news.process: provider=mock reason=gemini_failed wc=${wordCount}`);
     return generateMockAnalysis(content, url, extractionConfidence);
   }
 
-  // Average bias and sentiment if we have both passes
+  // Average bias & sentiment if B exists
   let biasLeft = toInt(passA?.bias?.left, extractionConfidence === "low" ? 20 : 33);
   let biasCenter = toInt(passA?.bias?.center, extractionConfidence === "low" ? 60 : 34);
   let biasRight = toInt(passA?.bias?.right, extractionConfidence === "low" ? 20 : 33);
   let sentPos = toInt(passA?.sentiment?.positive, extractionConfidence === "low" ? 25 : 34);
   let sentNeu = toInt(passA?.sentiment?.neutral, extractionConfidence === "low" ? 50 : 34);
   let sentNeg = toInt(passA?.sentiment?.negative, extractionConfidence === "low" ? 25 : 32);
-  
+
   let maxDiff = 0;
   if (passB) {
     const bLeftB = toInt(passB?.bias?.left, 33);
@@ -417,8 +387,7 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
     const sPosB = toInt(passB?.sentiment?.positive, 34);
     const sNeuB = toInt(passB?.sentiment?.neutral, 34);
     const sNegB = toInt(passB?.sentiment?.negative, 32);
-    
-    // Calculate max difference for confidence
+
     maxDiff = Math.max(
       Math.abs(biasLeft - bLeftB),
       Math.abs(biasCenter - bCenterB),
@@ -427,8 +396,7 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
       Math.abs(sentNeu - sNeuB),
       Math.abs(sentNeg - sNegB)
     );
-    
-    // Average the values
+
     biasLeft = Math.round((biasLeft + bLeftB) / 2);
     biasCenter = Math.round((biasCenter + bCenterB) / 2);
     biasRight = Math.round((biasRight + bRightB) / 2);
@@ -437,22 +405,19 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
     sentNeg = Math.round((sentNeg + sNegB) / 2);
   }
 
-  // Normalize bias and sentiment
+  // Normalize
   const normalizedBias = normalizeBars(biasLeft, biasCenter, biasRight);
   const normalizedSent = normalizeBars(sentPos, sentNeu, sentNeg);
 
-  // Determine confidence
+  // Confidence
   let confidence: BiasConfidence = extractionConfidence === "low" ? "low" : "medium";
-  if (wordCount < 300 || maxDiff > 12 || extractionConfidence === "low") {
-    confidence = "low";
-  } else if (wordCount > 1000 && maxDiff < 5 && extractionConfidence === "high") {
-    confidence = "high";
-  }
+  if (wordCount < 300 || maxDiff > 12 || extractionConfidence === "low") confidence = "low";
+  else if (wordCount > 1000 && maxDiff < 5 && extractionConfidence === "high") confidence = "high";
 
-  // Clean the title and build final analysis
+  // Title & final shaping
   const rawTitle = String(passA?.meta?.title || passA?.title || "Untitled article");
   const cleanTitle = sanitizeTitle(rawTitle, domain);
-  
+
   const analysis: ArticleAnalysis = {
     meta: {
       title: cleanTitle,
@@ -463,21 +428,21 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
     tldr: {
       headline: String(passA?.tldr?.headline || "Summary unavailable"),
       subhead: String(passA?.tldr?.subhead || "Please try another article"),
-      paragraphs: asArray<string>(passA?.tldr?.paragraphs).slice(0, 5).filter(x => x) || [
+      paragraphs: asArray<string>(passA?.tldr?.paragraphs).slice(0, 5).filter(Boolean) || [
         String(passA?.tldr?.headline || "Summary unavailable"),
-        String(passA?.tldr?.subhead || "Please try another article")
+        String(passA?.tldr?.subhead || "Please try another article"),
       ],
     },
     eli5: {
       summary: String(passA?.eli5?.summary || "Analysis not available"),
       analogy: passA?.eli5?.analogy ? String(passA.eli5.analogy) : undefined,
     },
-    why_it_matters: asArray<string>(passA?.why_it_matters).slice(0, 6).filter(x => x),
+    why_it_matters: asArray<string>(passA?.why_it_matters).slice(0, 6).filter(Boolean),
     key_points: asArray<any>(passA?.key_points)
       .slice(0, 10)
-      .map(k => ({ 
-        text: String(k?.text || ""), 
-        tag: (["fact","timeline","stakeholders","numbers"].includes(k?.tag) ? k.tag : "fact") as KeyTag 
+      .map(k => ({
+        text: String(k?.text || ""),
+        tag: (["fact", "timeline", "stakeholders", "numbers"].includes(k?.tag) ? k.tag : "fact") as KeyTag
       }))
       .filter(k => k.text),
     perspectives: asArray<any>(passA?.perspectives)
@@ -485,15 +450,15 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
       .map(p => ({
         label: String(p?.label || "Perspective"),
         summary: String(p?.summary || ""),
-        bullets: asArray<string>(p?.bullets).slice(0, 5).filter(x => x),
+        bullets: asArray<string>(p?.bullets).slice(0, 5).filter(Boolean),
       })),
-    common_ground: asArray<string>(passA?.common_ground).slice(0, 3).filter(x => x),
+    common_ground: asArray<string>(passA?.common_ground).slice(0, 3).filter(Boolean),
     glossary: asArray<any>(passA?.glossary)
       .slice(0, 8)
-      .map(g => ({ 
-        term: String(g?.term || ""), 
+      .map(g => ({
+        term: String(g?.term || ""),
         definition: String(g?.definition || ""),
-        link: g?.link ? String(g.link) : undefined 
+        link: g?.link ? String(g.link) : undefined
       }))
       .filter(g => g.term && g.definition),
     bias: {
@@ -504,7 +469,7 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
       rationale: String(passA?.bias?.rationale || "Analysis based on content tone and framing"),
       colors: { left: "#3b82f6", center: "#84a98c", right: "#ef4444" },
     },
-    tone: (["factual","neutral","opinionated","satirical"].includes(passA?.tone) ? passA.tone : "factual") as Tone,
+    tone: (["factual", "neutral", "opinionated", "satirical"].includes(passA?.tone) ? passA.tone : "factual") as Tone,
     sentiment: {
       positive: normalizedSent.a,
       neutral: normalizedSent.b,
@@ -525,7 +490,7 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
     }).filter(item => item.q),
   };
 
-  console.log(`news.process: model=${modelUsed} result=ok id=pending wc=${wordCount} confidence=${extractionConfidence}`);
+  console.log(`news.process: provider=gemini model=${modelUsed} result=ok wc=${wordCount} confidence=${extractionConfidence}`);
   return analysis;
 }
 
@@ -534,14 +499,12 @@ export const process = api(
   { expose: true, method: "POST", path: "/article/process" },
   async (params: ProcessRequest): Promise<ProcessResponse> => {
     const { url } = params;
-    
     if (!url || typeof url !== "string") return { success: false, error: "Missing url" };
     try { new URL(url); } catch { return { success: false, error: "Invalid url" }; }
 
-    // Use a default IP for now (in production, you'd get this from headers)
     const clientIP = "127.0.0.1";
-    
-    // Check rate limit
+
+    // Rate limit
     const rateCheck = memoryStore.checkRateLimit(clientIP);
     if (!rateCheck.allowed) {
       return {
@@ -553,7 +516,7 @@ export const process = api(
       };
     }
 
-    // Check cache first
+    // Cache first
     const cacheKey = `${new URL(url).hostname}${new URL(url).pathname}`;
     const cached = memoryStore.getCached(cacheKey);
     if (cached) {
@@ -569,10 +532,8 @@ export const process = api(
     const extracted = await extractTextFromUrl(url);
     const analysis = await generateAnalysis(extracted.text, url, extracted.confidence);
 
-    // Generate a unique ID for this article
     const articleId = randomUUID();
 
-    // Persist into `articles` table
     const whyJson = JSON.stringify(analysis.why_it_matters || []);
     const pointsJson = JSON.stringify(analysis.key_points || []);
     const perspectivesJson = JSON.stringify(analysis.perspectives || []);
@@ -628,13 +589,10 @@ export const process = api(
       `;
 
       const rowsArray = [];
-      for await (const row of rows) {
-        rowsArray.push(row);
-      }
-      
-      // Cache the result
+      for await (const row of rows) rowsArray.push(row);
+
       memoryStore.setCached(cacheKey, { id: articleId });
-      
+
       return { 
         success: true, 
         id: articleId,
