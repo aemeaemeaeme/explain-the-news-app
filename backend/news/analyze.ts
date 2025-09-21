@@ -203,7 +203,7 @@ Return JSON with all required fields. Ensure bias and sentiment numbers vary nat
             { role: "user", content: userPrompt },
           ],
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 30000))
       ]);
 
       const responseText = (response as any).choices?.[0]?.message?.content ?? "";
@@ -249,8 +249,26 @@ Return JSON with all required fields. Ensure bias and sentiment numbers vary nat
         };
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error(`❌ OpenAI API error:`, error);
+      
+      // Handle specific OpenAI errors
+      if (error?.message?.includes('429') || error?.message?.includes('rate_limit')) {
+        return {
+          limited: true,
+          reason: "rate_limited",
+          advice: "Analysis service is at capacity. Please try again in a few minutes."
+        };
+      }
+      
+      if (error?.message?.includes('timeout')) {
+        return {
+          limited: true,
+          reason: "timeout",
+          advice: "Analysis is taking too long. Please try again with a shorter article."
+        };
+      }
+      
       return {
         limited: true,
         reason: "api_error",

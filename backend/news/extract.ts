@@ -16,91 +16,64 @@ interface ExtractResponse {
   reason?: string;
 }
 
-const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36";
+const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36";
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchWithRetries(url: string, headers: Record<string, string> = {}, retries = 2): Promise<string> {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'User-Agent': USER_AGENT,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          ...headers,
-        },
-        signal: AbortSignal.timeout(30000),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.text();
-    } catch (error) {
-      console.log(`Fetch attempt ${i + 1} failed for ${url}:`, error);
-      
-      if (i < retries) {
-        const backoff = 1000 + Math.random() * 2000; // 1-3 second backoff
-        await sleep(backoff);
-      } else {
-        throw error;
-      }
-    }
-  }
-  throw new Error('All retries failed');
+function okText(s?: string): boolean { 
+  return !!(s && s.replace(/\s+/g, " ").length > 1200);
 }
 
-function extractMetadata(html: string, url: string) {
-  const domain = new URL(url).hostname.replace(/^www\./, '');
+async function fetchWithTimeout(target: string, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
-  // Title extraction - prioritize og:title, then article title
-  const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i);
-  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  const h1Match = html.match(/<h1[^>]*class="[^"]*(?:headline|title)[^"]*"[^>]*>([^<]+)<\/h1>/i);
-  
-  let title = '';
-  if (ogTitleMatch) {
-    title = ogTitleMatch[1].trim();
-  } else if (h1Match) {
-    title = h1Match[1].trim();
-  } else if (titleMatch) {
-    title = titleMatch[1].trim();
-  } else {
-    title = 'Untitled Article';
+  try {
+    const response = await fetch(target, {
+      headers: { 
+        "user-agent": UA, 
+        "accept-language": "en-US,en;q=0.9",
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "cache-control": "no-cache"
+      }, 
+      redirect: "follow",
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
   }
-  
-  // Clean title
-  title = title.replace(/\s+/g, ' ').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#39;/g, "'");
-  
-  // Byline extraction
-  const bylinePatterns = [
-    /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i,
-    /<span[^>]*class="[^"]*(?:author|byline)[^"]*"[^>]*>([^<]+)<\/span>/i,
-    /<p[^>]*class="[^"]*byline[^"]*"[^>]*>(?:By\s+)?([^<]+)<\/p>/i,
-    /<div[^>]*class="[^"]*byline[^"]*"[^>]*>.*?(?:By\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
-    /By\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
-  ];
-  
-  let byline = null;
-  for (const pattern of bylinePatterns) {
-    const match = html.match(pattern);
-    if (match && match[1]) {
-      byline = match[1].trim().replace(/^By\s+/i, '').replace(/\s+/g, ' ');
-      if (byline.length > 3 && byline.length < 100) break;
-    }
-  }
-  
-  return { title, byline, domain };
 }
 
-function readabilityExtract(html: string): { content: string; textContent: string } {
-  // Remove scripts, styles, nav, ads
+// Simple DOM-like parsing for server-side use
+function parseHtmlLike(html: string) {
+  return {
+    querySelector: (selector: string) => {
+      if (selector === 'title') {
+        const match = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+        return match ? { textContent: match[1] } : null;
+      }
+      return null;
+    },
+    querySelectorAll: (selector: string) => {
+      if (selector === 'p') {
+        const matches = html.match(/<p[^>]*>.*?<\/p>/gi) || [];
+        return matches.map(p => ({ 
+          textContent: p.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        }));
+      }
+      return [];
+    }
+  };
+}
+
+// Simple Readability-like implementation
+function readabilityExtract(html: string, url: string) {
+  // Remove scripts, styles, and other non-content elements
   let cleaned = html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -111,7 +84,31 @@ function readabilityExtract(html: string): { content: string; textContent: strin
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<div[^>]*class="[^"]*(?:ad|advertisement|promo|social|share|newsletter|subscribe)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
 
-  // Try to find main content
+  // Extract title
+  const titleMatch = cleaned.match(/<title[^>]*>([^<]*)<\/title>/i) ||
+                    cleaned.match(/<h1[^>]*>([^<]*)<\/h1>/i) ||
+                    cleaned.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']*)["']/i);
+  let title = titleMatch ? titleMatch[1].trim() : 'Untitled Article';
+  title = title.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#39;/g, "'");
+
+  // Extract byline
+  const bylinePatterns = [
+    /<meta[^>]*name=["']author["'][^>]*content=["']([^"']*)["']/i,
+    /<span[^>]*class="[^"]*(?:author|byline)[^"]*"[^>]*>([^<]*)<\/span>/i,
+    /<p[^>]*class="[^"]*byline[^"]*"[^>]*>(?:By\s+)?([^<]*)<\/p>/i,
+    /By\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+  ];
+  
+  let byline = null;
+  for (const pattern of bylinePatterns) {
+    const match = cleaned.match(pattern);
+    if (match && match[1]) {
+      byline = match[1].trim().replace(/^By\s+/i, '').replace(/\s+/g, ' ');
+      if (byline.length > 3 && byline.length < 100) break;
+    }
+  }
+
+  // Try to find main content areas
   const contentSelectors = [
     /<article[^>]*>([\s\S]*?)<\/article>/i,
     /<div[^>]*class="[^"]*(?:article-content|story-body|entry-content|post-content|article-body)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
@@ -133,7 +130,7 @@ function readabilityExtract(html: string): { content: string; textContent: strin
   const paragraphs = content.match(/<p[^>]*>([^<]+(?:<[^>]+>[^<]*<\/[^>]+>[^<]*)*)<\/p>/gi) || [];
   const cleanParagraphs = paragraphs
     .map(p => p.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
-    .filter(p => p.length > 40 && !p.match(/^(subscribe|follow|share|click)/i))
+    .filter(p => p.length > 40 && !p.match(/^(subscribe|follow|share|click|advertisement)/i))
     .join('\n\n');
 
   let textContent;
@@ -147,60 +144,78 @@ function readabilityExtract(html: string): { content: string; textContent: strin
       .trim();
   }
 
-  return { content, textContent };
+  return {
+    site: new URL(url).hostname,
+    url: url,
+    title: title || 'Untitled Article',
+    byline: byline || null,
+    estReadMin: Math.max(1, Math.round((textContent.split(/\s+/).length) / 225)),
+    html: content || "",
+    text: textContent || ""
+  };
 }
 
-function findAmpUrl(html: string, originalUrl: string): string | null {
-  const ampMatch = html.match(/<link[^>]*rel=["']amphtml["'][^>]*href=["']([^"']+)["']/i);
-  if (ampMatch) {
-    const ampUrl = ampMatch[1];
-    return ampUrl.startsWith('http') ? ampUrl : new URL(ampUrl, originalUrl).href;
-  }
-  return null;
-}
-
-function findCanonicalUrl(html: string, originalUrl: string): string | null {
-  const canonicalMatch = html.match(/<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["']/i);
-  if (canonicalMatch) {
-    const canonicalUrl = canonicalMatch[1];
-    return canonicalUrl.startsWith('http') ? canonicalUrl : new URL(canonicalUrl, originalUrl).href;
-  }
-  return null;
-}
-
-async function tryJinaProxy(url: string): Promise<{ content: string; textContent: string } | null> {
+async function tryReadability(target: string) {
   try {
-    const protocol = url.startsWith('https') ? 'https' : 'http';
-    const jinaUrl = `https://r.jina.ai/${protocol}://${url.replace(/^https?:\/\//, '')}`;
-    
-    console.log(`Trying Jina proxy: ${jinaUrl}`);
-    const html = await fetchWithRetries(jinaUrl, {}, 1);
-    const result = readabilityExtract(html);
-    
-    if (result.textContent.length >= 1200) {
-      console.log(`Jina proxy success: ${result.textContent.length} chars`);
-      return result;
-    }
-  } catch (e) {
-    console.log('Jina proxy failed:', e);
+    const r = await fetchWithTimeout(target);
+    if (!r.ok) return null;
+    const html = await r.text();
+    const result = readabilityExtract(html, target);
+    if (!result?.text) return null;
+    return result;
+  } catch (error) {
+    console.log(`Readability extraction failed for ${target}:`, error);
+    return null;
+  }
+}
+
+async function resolveAmp(u: string) {
+  try {
+    const r = await fetchWithTimeout(u, 15000);
+    const html = await r.text();
+    const m = html.match(/<link[^>]+rel=["']amphtml["'][^>]+href=["']([^"']+)["']/i);
+    if (m) return new URL(m[1], r.url).toString();
+  } catch (error) {
+    console.log('AMP resolution failed:', error);
   }
   return null;
 }
 
-async function tryAmpUrl(ampUrl: string): Promise<{ content: string; textContent: string } | null> {
+// OPTIONAL: implement Playwright fallback only if your host supports it
+async function tryHeadless(u: string): Promise<{
+  site: string;
+  url: string;
+  title: string;
+  byline: string | null;
+  estReadMin: number;
+  html: string;
+  text: string;
+} | null> {
   try {
-    console.log(`Trying AMP URL: ${ampUrl}`);
-    const html = await fetchWithRetries(ampUrl, {}, 1);
-    const result = readabilityExtract(html);
+    // Check if playwright is available (comment this out if not installed)
+    // const { chromium } = await import("playwright");
+    // const browser = await chromium.launch({ args: ["--no-sandbox"], headless: true });
+    // const page = await browser.newPage({ userAgent: UA, locale: "en-US" });
+    // await page.goto(u, { waitUntil: "domcontentloaded", timeout: 30000 });
+    // 
+    // // Basic consent dismissors (best-effort)
+    // try { await page.click('button:has-text("Accept")', { timeout: 3000 }); } catch {}
+    // try { await page.click('button:has-text("Allow")', { timeout: 3000 }); } catch {}
+    // 
+    // const content = await page.content();
+    // await browser.close();
+    // 
+    // const result = readabilityExtract(content, u);
+    // if (!result?.text) return null;
+    // return result;
     
-    if (result.textContent.length >= 1200) {
-      console.log(`AMP success: ${result.textContent.length} chars`);
-      return result;
-    }
-  } catch (e) {
-    console.log('AMP fetch failed:', e);
+    // For now, return null since playwright might not be available
+    console.log('Headless browser extraction not available');
+    return null;
+  } catch (error) {
+    console.log('Headless extraction failed:', error);
+    return null;
   }
-  return null;
 }
 
 export const extract = api<ExtractRequest, ExtractResponse>(
@@ -209,149 +224,84 @@ export const extract = api<ExtractRequest, ExtractResponse>(
     console.log(`🔍 Starting robust extraction for: ${url}`);
     
     // Validate URL
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-        throw new Error('Invalid protocol');
-      }
-    } catch {
+    if (!/^https?:\/\//i.test(url)) {
       throw new Error("Invalid URL provided");
     }
-    
-    const domain = parsedUrl.hostname.replace(/^www\./, '');
-    let finalUrl = url;
-    let diagnostic = { tier1: false, tier2: false, tier3: false };
-    
+
     try {
-      // TIER 1 - FAST FETCH
-      console.log('📥 TIER 1: Fast fetch with desktop headers');
-      const html = await fetchWithRetries(url);
-      const metadata = extractMetadata(html, url);
-      finalUrl = url; // Track redirects if needed
-      
-      let result = readabilityExtract(html);
-      diagnostic.tier1 = true;
-      
-      if (result.textContent.length >= 1200) {
-        console.log(`✅ TIER 1 success: ${result.textContent.length} chars`);
-        return {
-          status: "ok",
-          site: domain,
-          url: finalUrl,
-          title: metadata.title,
-          byline: metadata.byline,
-          estReadMin: Math.max(1, Math.round(result.textContent.split(/\s+/).length / 225)),
-          html: result.content,
-          text: result.textContent
-        };
+      // TIER 1 — direct fetch + Readability
+      console.log('📥 TIER 1: Direct fetch + Readability');
+      const t1 = await tryReadability(url);
+      if (okText(t1?.text)) {
+        console.log(`✅ TIER 1 success: ${t1!.text.length} chars`);
+        return { status: "ok", ...t1! };
       }
-      
-      // TIER 2 - ALT SOURCES
-      console.log('📱 TIER 2: Alternative sources (AMP, canonical, Jina proxy)');
-      diagnostic.tier2 = true;
-      
-      // Try AMP version
-      const ampUrl = findAmpUrl(html, url);
-      if (ampUrl) {
-        const ampResult = await tryAmpUrl(ampUrl);
-        if (ampResult && ampResult.textContent.length >= 1200) {
-          return {
-            status: "ok",
-            site: domain,
-            url: ampUrl,
-            title: metadata.title,
-            byline: metadata.byline,
-            estReadMin: Math.max(1, Math.round(ampResult.textContent.split(/\s+/).length / 225)),
-            html: ampResult.content,
-            text: ampResult.textContent
-          };
+
+      // TIER 2 — AMP or proxy via Jina
+      console.log('📱 TIER 2: AMP and Jina proxy');
+      const amp = await resolveAmp(url);
+      if (amp) {
+        const t2a = await tryReadability(amp);
+        if (okText(t2a?.text)) {
+          console.log(`✅ AMP success: ${t2a!.text.length} chars`);
+          return { status: "ok", ...t2a! };
         }
       }
-      
-      // Try canonical URL if different
-      const canonicalUrl = findCanonicalUrl(html, url);
-      if (canonicalUrl && canonicalUrl !== url) {
-        try {
-          const canonicalHtml = await fetchWithRetries(canonicalUrl, {}, 1);
-          const canonicalResult = readabilityExtract(canonicalHtml);
-          if (canonicalResult.textContent.length >= 1200) {
-            console.log(`✅ Canonical URL success: ${canonicalResult.textContent.length} chars`);
-            return {
-              status: "ok",
-              site: domain,
-              url: canonicalUrl,
-              title: metadata.title,
-              byline: metadata.byline,
-              estReadMin: Math.max(1, Math.round(canonicalResult.textContent.split(/\s+/).length / 225)),
-              html: canonicalResult.content,
-              text: canonicalResult.textContent
-            };
-          }
-        } catch (e) {
-          console.log('Canonical URL failed:', e);
-        }
-      }
-      
+
       // Try Jina proxy
-      const jinaResult = await tryJinaProxy(url);
-      if (jinaResult && jinaResult.textContent.length >= 1200) {
-        return {
-          status: "ok",
-          site: domain,
-          url: finalUrl,
-          title: metadata.title,
-          byline: metadata.byline,
-          estReadMin: Math.max(1, Math.round(jinaResult.textContent.split(/\s+/).length / 225)),
-          html: jinaResult.content,
-          text: jinaResult.textContent
-        };
+      const jinaUrl = `https://r.jina.ai/${url.replace(/^https?:\/\//, '')}`;
+      const t2b = await tryReadability(jinaUrl);
+      if (okText(t2b?.text)) {
+        console.log(`✅ Jina proxy success: ${t2b!.text.length} chars`);
+        return { status: "ok", ...t2b! };
       }
+
+      // TIER 3 — headless (Playwright)
+      console.log('🤖 TIER 3: Headless browser');
+      const t3 = await tryHeadless(url);
+      if (okText(t3?.text)) {
+        console.log(`✅ Headless success: ${t3!.text.length} chars`);
+        return { status: "ok", ...t3! };
+      }
+
+      // All tiers failed but we might have some content
+      const fallback = t1 || t2b;
       
-      // TIER 3 - HEADLESS (placeholder for now - would need Playwright/Puppeteer)
-      console.log('🤖 TIER 3: Headless browser (not implemented yet)');
-      diagnostic.tier3 = false; // Would be true if we had headless
-      
-      // If we have some content but not enough, return limited
-      if (result.textContent.length >= 400) {
-        console.log(`⚠️ Limited content extracted: ${result.textContent.length} chars`);
+      if (fallback) {
+        console.log('⚠️ Partial content extracted, returning limited response');
         return {
           status: "limited",
-          site: domain,
-          url: finalUrl,
-          title: metadata.title,
-          byline: metadata.byline,
-          estReadMin: Math.max(1, Math.round(result.textContent.split(/\s+/).length / 225)),
-          text: result.textContent,
-          reason: "limited_content"
+          reason: "site_protection",
+          ...fallback
         };
       }
       
-      // All tiers failed
-      console.log(`❌ All extraction tiers failed`);
+      // No content at all
+      console.log('❌ All extraction tiers failed, returning minimal response');
       return {
         status: "limited",
-        site: domain,
-        url: finalUrl,
-        title: metadata.title,
-        byline: metadata.byline,
-        estReadMin: 1,
-        text: `Content extraction limited for ${domain}. This site may use strong anti-bot protection.`,
-        reason: "site_protection"
-      };
-      
-    } catch (error) {
-      console.error(`💥 Extraction failed for ${url}:`, error);
-      
-      return {
-        status: "limited",
-        site: domain,
-        url: finalUrl,
-        title: "Content Extraction Failed",
+        reason: "site_protection",
+        site: new URL(url).hostname,
+        url: url,
+        title: "Content Extraction Limited",
         byline: null,
         estReadMin: 1,
-        text: `Failed to extract content from ${domain}. This site may have strong anti-bot protection.`,
-        reason: "extraction_failed"
+        text: `Content extraction limited for ${new URL(url).hostname}. This site may use strong anti-bot protection.`
+      };
+
+    } catch (error: any) {
+      console.error(`💥 Extraction failed for ${url}:`, error);
+      const domain = new URL(url).hostname;
+      
+      return {
+        status: "limited",
+        reason: "api_error",
+        site: domain,
+        url: url,
+        title: "Extraction Error",
+        byline: null,
+        estReadMin: 1,
+        text: `Failed to extract content from ${domain}. ${error?.message || error}`,
       };
     }
   }

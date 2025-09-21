@@ -21,10 +21,23 @@ export default function Hero() {
       const extractResult = await backend.news.extract({ url });
       
       if (extractResult.status === "limited") {
+        // Map specific error reasons to user-friendly messages
+        const errorMessages = {
+          site_protection: "This site blocks automated readers. Try opening the original article or use another link.",
+          api_error: "Service issue. Please retry in a moment.",
+          insufficient_text: "Couldn't get enough article text from this page.",
+          extraction_failed: "Failed to extract content. This site may have strong protection."
+        };
+        
+        const reason = extractResult.reason || 'unknown';
+        const message = errorMessages[reason as keyof typeof errorMessages] || 
+                       `Content extraction limited: ${reason}. Try the original article link.`;
+        
         return {
           success: false,
-          error: `Limited content extracted: ${extractResult.reason}. Try the original article link.`,
-          limited: true
+          error: message,
+          limited: true,
+          reason: reason
         };
       }
       
@@ -39,10 +52,23 @@ export default function Hero() {
       });
       
       if (analysisResult.limited) {
+        const errorMessages = {
+          insufficient_text: "Article text is too short for meaningful analysis. Try the original link.",
+          api_not_configured: "Analysis service is not properly configured.",
+          analysis_failed: "The analysis service encountered an error processing this content.",
+          api_error: "Analysis service is temporarily unavailable. Please try again later."
+        };
+        
+        const reason = analysisResult.reason || 'unknown';
+        const message = errorMessages[reason as keyof typeof errorMessages] || 
+                       analysisResult.advice ||
+                       `Analysis limited: ${reason}`;
+        
         return {
           success: false,
-          error: `Analysis limited: ${analysisResult.reason}. ${analysisResult.advice || ''}`,
-          limited: true
+          error: message,
+          limited: true,
+          reason: reason
         };
       }
       
@@ -68,8 +94,8 @@ export default function Hero() {
     onError: (error: any) => {
       console.error('Error processing URL:', error);
       toast({
-        title: 'Error',
-        description: "Can't reach the server. Try again in a moment.",
+        title: 'Connection Error',
+        description: "Can't reach the server. Check your connection and try again.",
         variant: 'destructive',
       });
     },
