@@ -1,17 +1,18 @@
+// frontend/components/Demo.tsx
 import { useState } from 'react';
 import BiasBar from './BiasBar';
+import SentimentBar from './SentimentBar';
 import { Clock, Share, Copy, ChevronDown, ChevronUp, Handshake } from 'lucide-react';
 
 export default function Demo() {
   const [expandedQuestions, setExpandedQuestions] = useState<number[]>([]);
 
   const toggleQuestion = (index: number) => {
-    setExpandedQuestions(prev => 
-      prev.includes(index) 
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
+    setExpandedQuestions(prev =>
+      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
     );
   };
+
   const demoArticle = {
     title: "Global Climate Summit Reaches Historic Agreement",
     tldr: {
@@ -23,8 +24,10 @@ export default function Demo() {
       ]
     },
     eli5: {
-      summary: "Almost all countries in the world promised to pollute less to help save the planet. They want to cut pollution in half by 2030, and they're putting a lot of money into clean energy. Think of it like everyone in your neighborhood agreeing to use half as much electricity and all pitching in to buy solar panels for every house!",
-      analogy: "It's like everyone in your neighborhood agreeing to use half as much electricity and all pitching in to buy solar panels for every house! 🏠☀️"
+      summary:
+        "Almost all countries in the world promised to pollute less to help save the planet. They want to cut pollution in half by 2030, and they're putting a lot of money into clean energy. Think of it like everyone in your neighborhood agreeing to use half as much electricity and all pitching in to buy solar panels for every house!",
+      analogy:
+        "It's like everyone in your neighborhood agreeing to use half as much electricity and all pitching in to buy solar panels for every house! 🏠☀️"
     },
     whyMatters: [
       "First legally binding global climate agreement since Paris Accord",
@@ -46,17 +49,19 @@ export default function Demo() {
     perspectives: [
       {
         label: "Environmental Advocates",
-        summary: "This represents the most significant climate action in decades and offers hope for avoiding worst-case scenarios.",
+        summary:
+          "This represents the most significant climate action in decades and offers hope for avoiding worst-case scenarios.",
         bullets: [
           "Binding targets provide real accountability",
-          "Funding commitments address historical inequities", 
+          "Funding commitments address historical inequities",
           "Timeline is aggressive enough to make a difference",
           "Creates momentum for even stronger future action"
         ]
       },
       {
-        label: "Industry Representatives", 
-        summary: "While supportive of climate goals, many express concerns about implementation timelines and economic impacts.",
+        label: "Industry Representatives",
+        summary:
+          "While supportive of climate goals, many express concerns about implementation timelines and economic impacts.",
         bullets: [
           "Transition timeline may be too aggressive for some sectors",
           "Significant job displacement in fossil fuel industries",
@@ -76,31 +81,38 @@ export default function Demo() {
       { term: "Developing nations", definition: "Countries with growing economies that need climate support 🏗️" },
       { term: "Binding targets", definition: "Goals that countries are legally required to meet 📋" }
     ],
-    bias: { left: 28, center: 52, right: 20, confidence: "high" },
+    bias: { left: 28, center: 52, right: 20, confidence: "high" as const },
     sentiment: { positive: 65, neutral: 25, negative: 10 },
     readingTime: 4,
     sourceInfo: "Wire service – Reuters",
     followupQuestions: [
       {
         question: "What happens if countries don't meet their targets?",
-        answer: "The agreement includes stepped enforcement mechanisms, starting with public accountability reports and potentially escalating to trade restrictions."
+        answer:
+          "The agreement includes stepped enforcement mechanisms, starting with public accountability reports and potentially escalating to trade restrictions."
       },
       {
         question: "How will this affect gas prices and energy costs?",
-        answer: "Short-term costs may increase as fossil fuel supply is limited, but long-term renewable energy investments should lower overall energy costs."
+        answer:
+          "Short-term costs may increase as fossil fuel supply is limited, but long-term renewable energy investments should lower overall energy costs."
       },
       {
         question: "Which technologies are most promising for reaching these goals?",
-        answer: "Solar and wind power, battery storage, electric vehicles, and green hydrogen are seen as the key technologies for meeting emission targets."
+        answer:
+          "Solar and wind power, battery storage, electric vehicles, and green hydrogen are seen as the key technologies for meeting emission targets."
       }
     ]
   };
 
   return (
-    <section id="examples" className="py-20 px-4 bg-[#F7F7F7]">
-      {/* Subtle grid background */}
-      <div 
-        className="absolute inset-0 opacity-10"
+    <section
+      id="examples"
+      className="relative py-20 px-4 bg-[#F7F7F7]"
+      aria-labelledby="see-it-in-action-heading"
+    >
+      {/* Subtle grid background (now contained by the section) */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-10 -z-10"
         style={{
           backgroundImage: `
             repeating-linear-gradient(
@@ -115,13 +127,14 @@ export default function Demo() {
               transparent 39px,
               #8FA573 40px
             )
-          `,
+          `
         }}
+        aria-hidden="true"
       />
-      
+
       <div className="relative max-w-5xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-[#0B1B2B] mb-6">
+          <h2 id="see-it-in-action-heading" className="text-4xl md:text-5xl font-bold text-[#0B1B2B] mb-6">
             See It In Action
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto font-['Inter',system-ui,sans-serif]">
@@ -136,22 +149,26 @@ export default function Demo() {
               <h3 className="text-2xl font-bold text-[#0B1B2B] mb-2">
                 {demoArticle.title}
               </h3>
-              <div className="flex items-center gap-4 text-sm text-gray-500 font-['Inter',system-ui,sans-serif]">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 font-['Inter',system-ui,sans-serif]">
                 <span>{demoArticle.sourceInfo}</span>
-                <span>•</span>
+                <span className="hidden sm:inline">•</span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-4 w-4" />
                   {demoArticle.readingTime} min read
                 </span>
-                <span>•</span>
+                <span className="hidden sm:inline">•</span>
                 <span>reuters.com</span>
-                <span>•</span>
+                <span className="hidden sm:inline">•</span>
                 <span>Tone: factual</span>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Copy className="h-5 w-5 text-gray-400 cursor-pointer hover:text-[#8FA573] transition-colors" />
-              <Share className="h-5 w-5 text-gray-400 cursor-pointer hover:text-[#8FA573] transition-colors" />
+              <button className="p-1 rounded hover:bg-gray-100 transition-colors" aria-label="Copy link">
+                <Copy className="h-5 w-5 text-gray-500" />
+              </button>
+              <button className="p-1 rounded hover:bg-gray-100 transition-colors" aria-label="Share">
+                <Share className="h-5 w-5 text-gray-500" />
+              </button>
             </div>
           </div>
 
@@ -161,7 +178,9 @@ export default function Demo() {
               <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">TL;DR</h4>
               <div className="space-y-3">
                 {demoArticle.tldr.paragraphs.map((paragraph, index) => (
-                  <p key={index} className="text-gray-700 font-['Inter',system-ui,sans-serif]">{paragraph}</p>
+                  <p key={index} className="text-gray-700 font-['Inter',system-ui,sans-serif]">
+                    {paragraph}
+                  </p>
                 ))}
               </div>
             </div>
@@ -169,7 +188,9 @@ export default function Demo() {
             {/* ELI5 */}
             <div>
               <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Explain Like I'm 5</h4>
-              <p className="text-gray-700 mb-3 font-['Inter',system-ui,sans-serif]">{demoArticle.eli5.summary}</p>
+              <p className="text-gray-700 mb-3 font-['Inter',system-ui,sans-serif]">
+                {demoArticle.eli5.summary}
+              </p>
               <div className="bg-[#E6F0FF] p-4 rounded-xl border border-[#5C8CF0]/20">
                 <p className="text-gray-700 font-['Inter',system-ui,sans-serif]">
                   <strong>Analogy:</strong> {demoArticle.eli5.analogy}
@@ -183,7 +204,10 @@ export default function Demo() {
               <ul className="space-y-2">
                 {demoArticle.whyMatters.map((point, index) => (
                   <li key={index} className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-[#8FA573] rounded-full mt-2 flex-shrink-0"></div>
+                    <div
+                      className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
+                      style={{ backgroundColor: 'var(--sage)' }}
+                    />
                     <span className="text-gray-700 font-['Inter',system-ui,sans-serif]">{point}</span>
                   </li>
                 ))}
@@ -196,12 +220,17 @@ export default function Demo() {
               <div className="grid gap-3">
                 {demoArticle.keyPoints.map((point, index) => (
                   <div key={index} className="flex items-start gap-3">
-                    <span className={`px-2 py-1 text-xs rounded-full flex-shrink-0 ${
-                      point.tag === 'fact' ? 'bg-[#E6F0FF] text-[#5C8CF0]' :
-                      point.tag === 'numbers' ? 'bg-[#E8F5E8] text-[#8FA573]' :
-                      point.tag === 'timeline' ? 'bg-orange-100 text-orange-700' :
-                      'bg-purple-100 text-purple-700'
-                    }`}>
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full flex-shrink-0 font-medium ${
+                        point.tag === 'fact'
+                          ? 'bg-[#E6F0FF] text-[#5C8CF0]'
+                          : point.tag === 'numbers'
+                          ? 'bg-[#E8F5E8] text-[#8FA573]'
+                          : point.tag === 'timeline'
+                          ? 'bg-orange-100 text-orange-700'
+                          : 'bg-purple-100 text-purple-700'
+                      }`}
+                    >
                       {point.tag}
                     </span>
                     <span className="text-gray-700 font-['Inter',system-ui,sans-serif]">{point.text}</span>
@@ -213,7 +242,7 @@ export default function Demo() {
             {/* Bias Analysis */}
             <div>
               <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Bias Analysis</h4>
-              <BiasBar 
+              <BiasBar
                 left={demoArticle.bias.left}
                 center={demoArticle.bias.center}
                 right={demoArticle.bias.right}
@@ -221,49 +250,41 @@ export default function Demo() {
               />
             </div>
 
-            {/* Sentiment Analysis */}
+            {/* Sentiment Analysis (now using shared component) */}
             <div>
               <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Sentiment Analysis</h4>
-              <div className="flex rounded-lg overflow-hidden h-8 mb-2">
-                <div 
-                  className="bg-[#8FA573] flex items-center justify-center text-white text-sm font-medium"
-                  style={{ width: `${demoArticle.sentiment.positive}%` }}
-                >
-                  {demoArticle.sentiment.positive > 15 && `${demoArticle.sentiment.positive}%`}
-                </div>
-                <div 
-                  className="bg-gray-400 flex items-center justify-center text-white text-sm font-medium"
-                  style={{ width: `${demoArticle.sentiment.neutral}%` }}
-                >
-                  {demoArticle.sentiment.neutral > 15 && `${demoArticle.sentiment.neutral}%`}
-                </div>
-                <div 
-                  className="bg-[#ef4444] flex items-center justify-center text-white text-sm font-medium"
-                  style={{ width: `${demoArticle.sentiment.negative}%` }}
-                >
-                  {demoArticle.sentiment.negative > 15 && `${demoArticle.sentiment.negative}%`}
-                </div>
-              </div>
-              <div className="flex justify-between text-sm text-gray-600 font-['Inter',system-ui,sans-serif]">
-                <span>Positive ({demoArticle.sentiment.positive}%)</span>
-                <span>Neutral ({demoArticle.sentiment.neutral}%)</span>
-                <span>Negative ({demoArticle.sentiment.negative}%)</span>
-              </div>
+              <SentimentBar
+                positive={demoArticle.sentiment.positive}
+                neutral={demoArticle.sentiment.neutral}
+                negative={demoArticle.sentiment.negative}
+              />
             </div>
 
-            {/* Perspectives */}
+            {/* Different Perspectives */}
             <div>
               <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Different Perspectives</h4>
               <div className="grid md:grid-cols-2 gap-6">
                 {demoArticle.perspectives.map((perspective, index) => (
-                  <div key={index} className="bg-[#E6F0FF] p-6 rounded-xl border border-[#5C8CF0]/20">
-                    <h5 className="font-semibold text-[#2C3E50] mb-2 font-['Inter',system-ui,sans-serif]">{perspective.label}</h5>
-                    <p className="text-gray-700 mb-3 font-['Inter',system-ui,sans-serif]">{perspective.summary}</p>
+                  <div
+                    key={index}
+                    className="bg-[#E6F0FF] p-6 rounded-xl border border-[#5C8CF0]/20"
+                  >
+                    <h5 className="font-semibold text-[#2C3E50] mb-2 font-['Inter',system-ui,sans-serif]">
+                      {perspective.label}
+                    </h5>
+                    <p className="text-gray-700 mb-3 font-['Inter',system-ui,sans-serif]">
+                      {perspective.summary}
+                    </p>
                     <ul className="space-y-2">
                       {perspective.bullets.map((bullet, i) => (
                         <li key={i} className="flex items-start gap-2">
-                          <div className="w-1.5 h-1.5 bg-[#5C8CF0] rounded-full mt-2 flex-shrink-0"></div>
-                          <span className="text-gray-600 text-sm font-['Inter',system-ui,sans-serif]">{bullet}</span>
+                          <div
+                            className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0"
+                            style={{ backgroundColor: 'var(--ink)' }}
+                          />
+                          <span className="text-gray-600 text-sm font-['Inter',system-ui,sans-serif]">
+                            {bullet}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -275,13 +296,16 @@ export default function Demo() {
             {/* Common Ground */}
             <div>
               <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3 flex items-center gap-2">
-                <Handshake className="h-5 w-5 text-[#8FA573]" />
+                <Handshake className="h-5 w-5" style={{ color: 'var(--sage)' }} />
                 Common Ground
               </h4>
               <ul className="space-y-2">
                 {demoArticle.commonGround.map((point, index) => (
                   <li key={index} className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-[#8FA573] rounded-full mt-2 flex-shrink-0"></div>
+                    <div
+                      className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
+                      style={{ backgroundColor: 'var(--sage)' }}
+                    />
                     <span className="text-gray-700 font-['Inter',system-ui,sans-serif]">{point}</span>
                   </li>
                 ))}
@@ -304,35 +328,39 @@ export default function Demo() {
               </div>
             </div>
 
-            {/* Follow-up Questions */}
+            {/* Follow-up Questions (collapsible) */}
             <div>
               <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Follow-up Questions</h4>
               <div className="space-y-3">
-                {demoArticle.followupQuestions.map((item, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div 
-                      className="flex items-center gap-3 p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={() => toggleQuestion(index)}
-                    >
-                      {expandedQuestions.includes(index) ? (
-                        <ChevronUp className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                {demoArticle.followupQuestions.map((item, index) => {
+                  const open = expandedQuestions.includes(index);
+                  return (
+                    <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <button
+                        className="w-full flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                        onClick={() => toggleQuestion(index)}
+                        aria-expanded={open}
+                      >
+                        {open ? (
+                          <ChevronUp className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                        )}
+                        <span className="text-gray-700 font-medium">{item.question}</span>
+                      </button>
+                      {open && (
+                        <div className="p-4 bg-white border-t border-gray-200">
+                          <p className="text-gray-600">{item.answer}</p>
+                        </div>
                       )}
-                      <span className="text-gray-700 font-medium">{item.question}</span>
                     </div>
-                    {expandedQuestions.includes(index) && (
-                      <div className="p-4 bg-white border-t border-gray-200">
-                        <p className="text-gray-600">{item.answer}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
-        
+
         <p className="text-center text-gray-500 mt-8 font-['Inter',system-ui,sans-serif]">
           Auto-deletes after 24h · No accounts · No tracking
         </p>
