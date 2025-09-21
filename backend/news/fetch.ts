@@ -298,7 +298,7 @@ function getDomainAdapter(domain: string) {
 }
 
 export const fetchArticle = api<FetchArticleRequest, FetchArticleResponse>(
-  { expose: true, method: "POST", path: "/extract" },
+  { expose: true, method: "POST", path: "/fetch" },
   async ({ url }) => {
     console.log(`🔍 Starting extraction for: ${url}`);
     

@@ -1,44 +1,48 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
+import { Loader2, FileText } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import PaywallModal from './PaywallModal';
+import PasteTextModal from './PasteTextModal';
 import backend from '~backend/client';
 
 export default function Hero() {
   const [url, setUrl] = useState('');
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showPasteModal, setShowPasteModal] = useState(false);
   const [resetTime, setResetTime] = useState<number>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
+  // Check if we should show paste modal from navigation state
+  useEffect(() => {
+    if (location.state?.showPasteModal) {
+      setShowPasteModal(true);
+      // Clear the state to prevent it from showing again on refresh
+      navigate('/', { replace: true });
+    }
+  }, [location.state, navigate]);
+
   const processUrlMutation = useMutation({
-    mutationFn: async (url: string) => {
+    mutationFn: async ({ url, pastedText }: { url?: string; pastedText?: string }) => {
       // Use the new unified explain API
-      return backend.news.explain({ url });
+      return backend.news.explain({ url: url || '', pastedText });
     },
     onSuccess: (response) => {
-      if (response.meta.status === 'error') {
-        toast({
-          title: 'Analysis Failed',
-          description: response.tldr || "We couldn't process this article. Please try another URL.",
-          variant: 'destructive',
-        });
-      } else if (response.meta.status === 'limited') {
+      if (response.status === 'limited' && response.meta.source !== 'user_input') {
         toast({
           title: 'Limited Analysis',
-          description: 'Limited Analysis — some sites restrict automated access. We used reliable metadata and neutral context.',
+          description: 'Access restricted — analysis based on metadata/neutral context.',
           variant: 'default',
         });
-        // Navigate to results page with the response data
-        navigate('/article/temp', { state: { analysis: response } });
-      } else {
-        // Navigate to results page with the response data
-        navigate('/article/temp', { state: { analysis: response } });
       }
+      // Navigate to results page with the response data
+      navigate('/article/temp', { state: { analysis: response } });
+      setShowPasteModal(false);
     },
     onError: (error: any) => {
       console.error('Error processing URL:', error);
@@ -56,7 +60,7 @@ export default function Hero() {
 
     try {
       new URL(url); // quick validity check
-      processUrlMutation.mutate(url);
+      processUrlMutation.mutate({ url });
     } catch {
       toast({
         title: 'Invalid URL',
@@ -64,6 +68,10 @@ export default function Hero() {
         variant: 'destructive',
       });
     }
+  };
+
+  const handlePasteTextSubmit = (pastedText: string) => {
+    processUrlMutation.mutate({ pastedText });
   };
 
   return (
@@ -79,7 +87,7 @@ export default function Hero() {
           Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key points and sentiment so you see the whole picture.
         </p>
 
-        <form onSubmit={handleSubmit} className="relative z-10 max-w-2xl mx-auto mb-12">
+        <form onSubmit={handleSubmit} className="relative z-10 max-w-2xl mx-auto mb-8">
           <div className="flex gap-3">
             <div className="flex-1 relative">
               <Input
@@ -112,6 +120,25 @@ export default function Hero() {
           </div>
         </form>
 
+        {/* Alternative option */}
+        <div className="max-w-2xl mx-auto mb-12">
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <div className="h-px bg-gray-300 flex-1"></div>
+            <span className="text-sm text-gray-500">or</span>
+            <div className="h-px bg-gray-300 flex-1"></div>
+          </div>
+          
+          <Button
+            variant="outline"
+            onClick={() => setShowPasteModal(true)}
+            disabled={processUrlMutation.isPending}
+            className="w-full h-12 text-base border-2 border-gray-200 bg-white/95 hover:bg-gray-50 transition-all"
+          >
+            <FileText className="h-5 w-5 mr-2" />
+            Paste Article Text Instead
+          </Button>
+        </div>
+
         <div className="flex flex-wrap justify-center gap-3 text-sm mb-4" style={{color: 'var(--gray-600)'}}>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#22c55e'}}></div>
@@ -135,7 +162,7 @@ export default function Hero() {
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#f97316'}}></div>
-            Works on any site
+            Works on most sites
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#06b6d4'}}></div>
@@ -148,6 +175,13 @@ export default function Hero() {
         isOpen={showPaywall} 
         onClose={() => setShowPaywall(false)}
         resetTime={resetTime}
+      />
+      
+      <PasteTextModal
+        isOpen={showPasteModal}
+        onClose={() => setShowPasteModal(false)}
+        onSubmit={handlePasteTextSubmit}
+        isLoading={processUrlMutation.isPending}
       />
     </section>
   );

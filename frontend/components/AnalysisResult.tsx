@@ -1,4 +1,4 @@
-import { ArrowLeft, Clock, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Clock, ExternalLink, FileText, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,39 +8,37 @@ import GlossaryTooltip from './GlossaryTooltip';
 import { useNavigate } from 'react-router-dom';
 
 interface AnalysisProps {
+  status: "full" | "limited";
   meta: {
-    provider: "openai" | "gemini";
-    model: string;
-    elapsed_ms: number;
-    site: string | null;
-    url: string;
-    status: "full" | "limited" | "error";
-  };
-  header: {
     title: string;
-    byline: string | null;
-    read_time_min: number | null;
-    tone: "factual" | "neutral" | "mixed" | "opinion" | "unknown";
+    source: string;
+    author: string | null;
+    published: string | null;
+    reading_minutes: number;
+    tone: "factual" | "analytical" | "opinion" | "mixed";
+    provider: "gemini" | "openai";
+    model: string;
+    fallback_used: boolean;
   };
   tldr: string;
   eli5: string;
   why_it_matters: string[];
   key_points: Array<{
-    tag: "fact" | "timeline" | "numbers" | "stakeholders";
+    tag: "fact" | "numbers" | "timeline" | "stakeholders" | "quote";
     text: string;
   }>;
-  bias: {
-    left_pct: number;
-    center_pct: number;
-    right_pct: number;
-    confidence: "low" | "medium" | "high";
-    note: string;
+  bias_analysis: {
+    left: number;
+    center: number;
+    right: number;
+    confidence: "low" | "med" | "high";
+    notes: string;
   };
   sentiment: {
-    positive_pct: number;
-    neutral_pct: number;
-    negative_pct: number;
-    note: string;
+    positive: number;
+    neutral: number;
+    negative: number;
+    notes: string;
   };
   perspectives: {
     left_view: string[];
@@ -52,10 +50,8 @@ interface AnalysisProps {
     term: string;
     definition: string;
   }>;
-  errors: Array<{
-    code: string;
-    message: string;
-  }>;
+  followups: string[];
+  processing_notes: string[];
 }
 
 interface AnalysisResultProps {
@@ -71,6 +67,7 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
       case 'timeline': return 'bg-green-100 text-green-800';
       case 'numbers': return 'bg-purple-100 text-purple-800';
       case 'stakeholders': return 'bg-orange-100 text-orange-800';
+      case 'quote': return 'bg-pink-100 text-pink-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -78,11 +75,16 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
   const getToneColor = (tone: string) => {
     switch (tone) {
       case 'factual': return 'bg-blue-100 text-blue-800';
-      case 'neutral': return 'bg-gray-100 text-gray-800';
+      case 'analytical': return 'bg-green-100 text-green-800';
       case 'mixed': return 'bg-yellow-100 text-yellow-800';
       case 'opinion': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const handlePasteText = () => {
+    // Navigate back to home with paste mode enabled
+    navigate('/', { state: { showPasteModal: true } });
   };
 
   return (
@@ -97,46 +99,52 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
             </Button>
             <Badge 
               variant="outline" 
-              className={`${analysis.meta.status === 'full' ? 'bg-green-100 text-green-800' : 
-                analysis.meta.status === 'limited' ? 'bg-yellow-100 text-yellow-800' : 
-                'bg-red-100 text-red-800'}`}
+              className={`${analysis.status === 'full' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}
             >
-              {analysis.meta.status === 'full' ? 'Full Analysis' : 
-               analysis.meta.status === 'limited' ? 'Limited Analysis' : 'Error'}
+              {analysis.status === 'full' ? 'Full Analysis' : 'Limited Analysis'}
             </Badge>
+            {analysis.meta.fallback_used && (
+              <Badge variant="outline" className="bg-orange-100 text-orange-800">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                Fallback Used
+              </Badge>
+            )}
           </div>
 
-          <h1 className="text-2xl font-bold mb-2">{analysis.header.title}</h1>
+          <h1 className="text-2xl font-bold mb-2">{analysis.meta.title}</h1>
           
           <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-            {analysis.header.byline && (
-              <span>By {analysis.header.byline}</span>
+            {analysis.meta.author && (
+              <span>By {analysis.meta.author}</span>
             )}
-            {analysis.header.read_time_min && (
+            {analysis.meta.reading_minutes && (
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                <span>{analysis.header.read_time_min} min read</span>
+                <span>{analysis.meta.reading_minutes} min read</span>
               </div>
             )}
-            <span className="capitalize">{analysis.meta.site}</span>
-            <Badge className={getToneColor(analysis.header.tone)}>
-              {analysis.header.tone}
+            <span className="capitalize">{analysis.meta.source}</span>
+            <Badge className={getToneColor(analysis.meta.tone)}>
+              {analysis.meta.tone}
             </Badge>
-            <a 
-              href={analysis.meta.url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
-            >
-              <ExternalLink className="h-3 w-3" />
-              Original Article
-            </a>
+            {analysis.meta.source !== 'user_input' && (
+              <a 
+                href={`https://${analysis.meta.source}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Original Article
+              </a>
+            )}
           </div>
 
           {/* Provider Badge */}
           <div className="mt-4">
             <Badge variant="secondary" className="text-xs">
               {analysis.meta.provider === 'openai' ? 'OpenAI' : 'Gemini'} • {analysis.meta.model}
+              {analysis.meta.fallback_used && ' (fallback)'}
             </Badge>
           </div>
         </div>
@@ -145,12 +153,41 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
         {/* Error Banner for Limited Analysis */}
-        {analysis.meta.status === 'limited' && (
+        {analysis.status === 'limited' && (
           <Card className="border-yellow-200 bg-yellow-50">
             <CardContent className="pt-6">
-              <p className="text-yellow-800">
-                Limited Analysis — some sites restrict automated access. We used reliable metadata and neutral context.
-              </p>
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-yellow-800 mb-3">
+                    Access restricted—analysis based on metadata/neutral context.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handlePasteText}
+                      className="border-yellow-300 text-yellow-800 hover:bg-yellow-100"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Paste Article Text
+                    </Button>
+                    {analysis.meta.source !== 'user_input' && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        asChild
+                        className="border-yellow-300 text-yellow-800 hover:bg-yellow-100"
+                      >
+                        <a href={`https://${analysis.meta.source}`} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Open Original
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -218,12 +255,12 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </CardHeader>
           <CardContent>
             <BiasBar 
-              left={analysis.bias.left_pct}
-              center={analysis.bias.center_pct}
-              right={analysis.bias.right_pct}
-              confidence={analysis.bias.confidence}
+              left={analysis.bias_analysis.left}
+              center={analysis.bias_analysis.center}
+              right={analysis.bias_analysis.right}
+              confidence={analysis.bias_analysis.confidence}
             />
-            <p className="text-sm text-gray-600 mt-3">{analysis.bias.note}</p>
+            <p className="text-sm text-gray-600 mt-3">{analysis.bias_analysis.notes}</p>
           </CardContent>
         </Card>
 
@@ -234,11 +271,11 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </CardHeader>
           <CardContent>
             <SentimentBar 
-              positive={analysis.sentiment.positive_pct}
-              neutral={analysis.sentiment.neutral_pct}
-              negative={analysis.sentiment.negative_pct}
+              positive={analysis.sentiment.positive}
+              neutral={analysis.sentiment.neutral}
+              negative={analysis.sentiment.negative}
             />
-            <p className="text-sm text-gray-600 mt-3">{analysis.sentiment.note}</p>
+            <p className="text-sm text-gray-600 mt-3">{analysis.sentiment.notes}</p>
           </CardContent>
         </Card>
 
@@ -332,16 +369,35 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </Card>
         )}
 
-        {/* Errors (if any) */}
-        {analysis.errors.length > 0 && (
-          <Card className="border-red-200 bg-red-50">
+        {/* Follow-up Questions */}
+        {analysis.followups && analysis.followups.length > 0 && (
+          <Card>
             <CardHeader>
-              <CardTitle className="text-red-800">Processing Notes</CardTitle>
+              <CardTitle>Follow-up Questions</CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-1 text-sm text-red-700">
-                {analysis.errors.map((error, index) => (
-                  <li key={index}>• {error.message}</li>
+              <ul className="space-y-2">
+                {analysis.followups.map((question, index) => (
+                  <li key={index} className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">?</span>
+                    <span>{question}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Processing Notes */}
+        {analysis.processing_notes && analysis.processing_notes.length > 0 && (
+          <Card className="border-gray-200 bg-gray-50">
+            <CardHeader>
+              <CardTitle className="text-gray-800">Processing Notes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-1 text-sm text-gray-700">
+                {analysis.processing_notes.map((note, index) => (
+                  <li key={index}>• {note}</li>
                 ))}
               </ul>
             </CardContent>
