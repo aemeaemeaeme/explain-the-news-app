@@ -4,19 +4,19 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import BiasBar from './BiasBar';
 import SentimentBar from './SentimentBar';
-import GlossaryTooltip from './GlossaryTooltip';
+// import GlossaryTooltip from './GlossaryTooltip'; // (unused right now)
 import { useNavigate } from 'react-router-dom';
 
 interface AnalysisProps {
-  status: "full" | "limited";
+  status: 'full' | 'limited';
   meta: {
     title: string;
     source: string;
     author: string | null;
     published: string | null;
     reading_minutes: number;
-    tone: "factual" | "analytical" | "opinion" | "mixed";
-    provider: "gemini" | "openai";
+    tone: 'factual' | 'analytical' | 'opinion' | 'mixed';
+    provider: 'gemini' | 'openai';
     model: string;
     fallback_used: boolean;
   };
@@ -24,14 +24,14 @@ interface AnalysisProps {
   eli5: string;
   why_it_matters: string[];
   key_points: Array<{
-    tag: "fact" | "numbers" | "timeline" | "stakeholders" | "quote";
+    tag: 'fact' | 'numbers' | 'timeline' | 'stakeholders' | 'quote';
     text: string;
   }>;
   bias_analysis: {
     left: number;
     center: number;
     right: number;
-    confidence: "low" | "med" | "high";
+    confidence: 'low' | 'med' | 'high';
     notes: string;
   };
   sentiment: {
@@ -63,27 +63,37 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
 
   const getTagColor = (tag: string) => {
     switch (tag) {
-      case 'fact': return 'bg-blue-100 text-blue-800';
-      case 'timeline': return 'bg-green-100 text-green-800';
-      case 'numbers': return 'bg-purple-100 text-purple-800';
-      case 'stakeholders': return 'bg-orange-100 text-orange-800';
-      case 'quote': return 'bg-pink-100 text-pink-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'fact':
+        return 'bg-blue-100 text-blue-800';
+      case 'timeline':
+        return 'bg-green-100 text-green-800';
+      case 'numbers':
+        return 'bg-purple-100 text-purple-800';
+      case 'stakeholders':
+        return 'bg-orange-100 text-orange-800';
+      case 'quote':
+        return 'bg-pink-100 text-pink-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getToneColor = (tone: string) => {
     switch (tone) {
-      case 'factual': return 'bg-blue-100 text-blue-800';
-      case 'analytical': return 'bg-green-100 text-green-800';
-      case 'mixed': return 'bg-yellow-100 text-yellow-800';
-      case 'opinion': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'factual':
+        return 'bg-blue-100 text-blue-800';
+      case 'analytical':
+        return 'bg-green-100 text-green-800';
+      case 'mixed':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'opinion':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
   const handlePasteText = () => {
-    // Navigate back to home with paste mode enabled
     navigate('/', { state: { showPasteModal: true } });
   };
 
@@ -97,12 +107,18 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Search
             </Button>
-            <Badge 
-              variant="outline" 
-              className={`${analysis.status === 'full' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}
+
+            <Badge
+              variant="outline"
+              className={`${
+                analysis.status === 'full'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-yellow-100 text-yellow-800'
+              }`}
             >
               {analysis.status === 'full' ? 'Full Analysis' : 'Limited Analysis'}
             </Badge>
+
             {analysis.meta.fallback_used && (
               <Badge variant="outline" className="bg-orange-100 text-orange-800">
                 <AlertTriangle className="h-3 w-3 mr-1" />
@@ -112,25 +128,25 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </div>
 
           <h1 className="text-2xl font-bold mb-2">{analysis.meta.title}</h1>
-          
+
           <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-            {analysis.meta.author && (
-              <span>By {analysis.meta.author}</span>
-            )}
+            {analysis.meta.author && <span>By {analysis.meta.author}</span>}
+
             {analysis.meta.reading_minutes && (
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 <span>{analysis.meta.reading_minutes} min read</span>
               </div>
             )}
+
             <span className="capitalize">{analysis.meta.source}</span>
-            <Badge className={getToneColor(analysis.meta.tone)}>
-              {analysis.meta.tone}
-            </Badge>
+
+            <Badge className={getToneColor(analysis.meta.tone)}>{analysis.meta.tone}</Badge>
+
             {analysis.meta.source !== 'user_input' && (
-              <a 
-                href={`https://${analysis.meta.source}`} 
-                target="_blank" 
+              <a
+                href={`https://${analysis.meta.source}`}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
               >
@@ -152,7 +168,7 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
 
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-        {/* Error Banner for Limited Analysis */}
+        {/* Limited banner */}
         {analysis.status === 'limited' && (
           <Card className="border-yellow-200 bg-yellow-50">
             <CardContent className="pt-6">
@@ -163,23 +179,28 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
                     Access restricted—analysis based on metadata/neutral context.
                   </p>
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={handlePasteText}
                       className="border-yellow-300 text-yellow-800 hover:bg-yellow-100"
                     >
                       <FileText className="h-4 w-4 mr-2" />
                       Paste Article Text
                     </Button>
+
                     {analysis.meta.source !== 'user_input' && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         asChild
                         className="border-yellow-300 text-yellow-800 hover:bg-yellow-100"
                       >
-                        <a href={`https://${analysis.meta.source}`} target="_blank" rel="noopener noreferrer">
+                        <a
+                          href={`https://${analysis.meta.source}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
                           <ExternalLink className="h-4 w-4 mr-2" />
                           Open Original
                         </a>
@@ -192,7 +213,7 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </Card>
         )}
 
-        {/* TLDR */}
+        {/* TL;DR */}
         <Card>
           <CardHeader>
             <CardTitle>TL;DR</CardTitle>
@@ -254,7 +275,7 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
             <CardTitle>Bias Analysis</CardTitle>
           </CardHeader>
           <CardContent>
-            <BiasBar 
+            <BiasBar
               left={analysis.bias_analysis.left}
               center={analysis.bias_analysis.center}
               right={analysis.bias_analysis.right}
@@ -264,13 +285,13 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </CardContent>
         </Card>
 
-        {/* Sentiment Analysis */}
+        {/* Sentiment */}
         <Card>
           <CardHeader>
             <CardTitle>Sentiment Analysis</CardTitle>
           </CardHeader>
           <CardContent>
-            <SentimentBar 
+            <SentimentBar
               positive={analysis.sentiment.positive}
               neutral={analysis.sentiment.neutral}
               negative={analysis.sentiment.negative}
@@ -279,45 +300,42 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </CardContent>
         </Card>
 
-{/* Different Perspectives */}
-{analysis?.perspectives && (
-  <>
-    <h2 className="headline-font text-3xl md:text-4xl text-ink mb-6">
-      Different Perspectives
-    </h2>
+        {/* Different Perspectives */}
+        {analysis?.perspectives && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Different Perspectives</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-6 lg:gap-8 grid-cols-1 lg:grid-cols-2">
+                {/* Left */}
+                <div className="pill">
+                  <h3 className="text-2xl md:text-3xl">Climate Action Advocates</h3>
+                  <ul className="text-lg md:text-xl">
+                    {(analysis.perspectives.left_view ?? []).map((pt: string, i: number) => (
+                      <li key={`left-${i}`}>{pt}</li>
+                    ))}
+                  </ul>
+                </div>
 
-    <div className="grid gap-6 lg:gap-8 grid-cols-1 lg:grid-cols-2">
-      {/* Left / Climate Action Advocates */}
-      <div className="pill">
-        <h3 className="text-2xl md:text-3xl">Climate Action Advocates</h3>
-        <ul className="text-lg md:text-xl">
-          {(analysis.perspectives.left_view ?? []).map((pt: string, i: number) => (
-            <li key={`left-${i}`}>{pt}</li>
-          ))}
-        </ul>
-      </div>
+                {/* Right */}
+                <div className="pill">
+                  <h3 className="text-2xl md:text-3xl">Industry &amp; Economic Concerns</h3>
+                  <ul className="text-lg md:text-xl">
+                    {(analysis.perspectives.right_view ?? []).map((pt: string, i: number) => (
+                      <li key={`right-${i}`}>{pt}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
 
-      {/* Right / Industry & Economic Concerns */}
-      <div className="pill">
-        <h3 className="text-2xl md:text-3xl">Industry &amp; Economic Concerns</h3>
-        <ul className="text-lg md:text-xl">
-          {(analysis.perspectives.right_view ?? []).map((pt: string, i: number) => (
-            <li key={`right-${i}`}>{pt}</li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  </>
-)}
-
-
-              
-              {analysis.perspectives.center_view.length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-green-700 mb-2">Centrist view</h4>
-                  <ul className="space-y-1 text-sm">
+              {/* Center (optional, full width) */}
+              {(analysis.perspectives.center_view ?? []).length > 0 && (
+                <div className="mt-8">
+                  <h4 className="font-semibold text-gray-700 mb-3">Centrist View</h4>
+                  <ul className="grid gap-2 md:grid-cols-2">
                     {analysis.perspectives.center_view.map((view, index) => (
-                      <li key={index} className="flex items-start gap-2">
+                      <li key={`center-${index}`} className="flex items-start gap-2">
                         <span className="text-green-600 mt-1">•</span>
                         <span>{view}</span>
                       </li>
@@ -325,23 +343,9 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
                   </ul>
                 </div>
               )}
-              
-              {analysis.perspectives.right_view.length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-red-700 mb-2">Right-leaning view</h4>
-                  <ul className="space-y-1 text-sm">
-                    {analysis.perspectives.right_view.map((view, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <span className="text-red-600 mt-1">•</span>
-                        <span>{view}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Common Ground */}
         {analysis.common_ground.length > 0 && (
