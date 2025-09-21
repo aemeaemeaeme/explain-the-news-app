@@ -279,26 +279,25 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </CardContent>
         </Card>
 
-        {/* Perspectives */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Different Perspectives</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-3 gap-6">
-              {analysis.perspectives.left_view.length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-blue-700 mb-2">Left-leaning view</h4>
-                  <ul className="space-y-1 text-sm">
-                    {analysis.perspectives.left_view.map((view, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <span className="text-blue-600 mt-1">•</span>
-                        <span>{view}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+        {/* Different Perspectives */}
+<h2 className="headline-font text-3xl md:text-4xl text-ink mb-6">Different Perspectives</h2>
+
+<div className="grid gap-6 lg:gap-8 grid-cols-1 lg:grid-cols-2">
+  <div className="pill">
+    <h3 className="text-2xl md:text-3xl">Climate Action Advocates</h3>
+    <ul className="text-lg md:text-xl">
+      {/* your <li> items stay the same */}
+    </ul>
+  </div>
+
+  <div className="pill">
+    <h3 className="text-2xl md:text-3xl">Industry & Economic Concerns</h3>
+    <ul className="text-lg md:text-xl">
+      {/* your <li> items stay the same */}
+    </ul>
+  </div>
+</div>
+
               
               {analysis.perspectives.center_view.length > 0 && (
                 <div>
