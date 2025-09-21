@@ -82,7 +82,7 @@ export default function SeeItInAction() {
       <div className="max-w-6xl mx-auto">
         {/* Section Header */}
         <div className="text-center mb-16">
-          <h2 className="headline-font text-4xl md:text-5xl mb-6" style={{color: 'var(--ink)'}}>
+          <h2 className="headline-font text-4xl md:text-5xl mb-6" style={{color: 'var(--sage)'}}>
             See It In Action
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
