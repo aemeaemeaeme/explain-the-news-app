@@ -22,7 +22,7 @@ export interface Article {
   source_mix: string;
   reading_time_minutes: number;
   privacy_note: string;
-  follow_up_questions: string[];
+  follow_up_questions: Array<{ q: string; a: string }> | string[];
 }
 
 interface GetArticleRequest { id: string }
@@ -117,7 +117,18 @@ export const getArticle = api<GetArticleRequest, GetArticleResponse>(
     const perspectivesRaw = safeParseArray<any>(r.perspectives);
     const common = safeParseArray<string>(r.common_ground);
     const glossaryRaw = safeParseArray<any>(r.glossary);
-    const followups = safeParseArray<string>(r.follow_up_questions);
+    const followupsRaw = safeParseArray<any>(r.follow_up_questions);
+    
+    // Handle both old string format and new object format
+    const followups = followupsRaw.map((item: any) => {
+      if (typeof item === 'string') {
+        return { q: item, a: 'This question helps you think deeper about the article\'s implications and context.' };
+      }
+      return {
+        q: ensureString(item?.q || item?.question, ''),
+        a: ensureString(item?.a || item?.answer, 'This question helps you think deeper about the article\'s implications and context.')
+      };
+    }).filter((item: any) => item.q);
     const tldrParagraphs = safeParseArray<string>(r.tldr_paragraphs);
 
     // 3) Build Article object with guards/defaults (and bias normalization)

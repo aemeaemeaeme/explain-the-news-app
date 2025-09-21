@@ -34,7 +34,7 @@ export interface ArticleAnalysis {
   source_mix: string;
   reading_time_minutes: number;
   privacy_note: string;
-  follow_up_questions?: string[];
+  follow_up_questions?: Array<{ q: string; a: string }>;
 }
 
 // ---------------- Encore endpoint shape ----------------
@@ -72,6 +72,36 @@ function normalizeBars(a: number, b: number, c: number): { a: number; b: number;
 
 function asArray<T>(v: T | T[] | null | undefined): T[] {
   return isArray(v) ? v : v == null ? [] : [v];
+}
+
+function sanitizeTitle(title: string, domain: string): string {
+  let cleanTitle = title.trim();
+  
+  // Remove common domain suffixes from titles
+  const patterns = [
+    / - CNN$/i,
+    / \| Reuters$/i,
+    / \(AP\)$/i,
+    / - Associated Press$/i,
+    / - NPR$/i,
+    / - BBC$/i,
+    / - The Guardian$/i,
+    / - Washington Post$/i,
+    / - New York Times$/i,
+    / - NBC News$/i,
+    / - ABC News$/i,
+    / - CBS News$/i,
+    / - Fox News$/i,
+    new RegExp(` - ${domain}$`, 'i'),
+    new RegExp(` \| ${domain}$`, 'i'),
+    new RegExp(` \(${domain}\)$`, 'i')
+  ];
+  
+  for (const pattern of patterns) {
+    cleanTitle = cleanTitle.replace(pattern, '');
+  }
+  
+  return cleanTitle.trim();
 }
 
 function getSourceMix(domain: string, title: string): string {
@@ -202,9 +232,9 @@ function generateMockAnalysis(content: string, url: string): ArticleAnalysis {
     reading_time_minutes: Math.max(1, Math.ceil(wc / 200)),
     privacy_note: "Auto-deletes after 24h",
     follow_up_questions: [
-      "How can I access the original article?",
-      "What types of sites work best with this tool?",
-      "Are there alternative ways to get article summaries?"
+      { q: "How can I access the original article?", a: "Visit the original source URL directly to read the full article and access any premium content." },
+      { q: "What types of sites work best with this tool?", a: "Standard news sites, blogs, and publications with accessible content work best. Paywalled or heavily protected sites may not be accessible." },
+      { q: "Are there alternative ways to get article summaries?", a: "You can try other news aggregation tools, but always verify information by reading multiple sources." }
     ],
   };
 }
@@ -227,20 +257,25 @@ async function generateAnalysis(content: string, url: string): Promise<ArticleAn
     ? `No readable text extracted. Domain: ${domain}. Please infer conservatively from metadata and URL only.`
     : content;
 
-  const systemPrompt = `You are a neutral news explainer for a consumer app. Output MUST be valid JSON per the app schema. Plain text only (no Markdown or asterisks). Emojis are allowed. Be specific and grounded in the provided article text; if info is missing, use 'unknown'. Respect all length requirements exactly. Exactly two perspectives. Bias and sentiment integers must each sum to 100 and NOT be evenly split unless truly balanced. Return JSON ONLY.`;
+  const systemPrompt = `You are a neutral news explainer for a consumer app. Output MUST be valid JSON per the app schema. Plain text only (no Markdown or asterisks). Emojis are allowed. Be specific and grounded in the provided article text; if info is missing, use 'unknown'. 
+
+CRITICAL: Avoid static fallback values. Bias and sentiment integers must sum to 100 but MUST NOT be 33/34/33 or 34/34/32 unless the article is genuinely balanced/neutral. Provide meaningful variance based on actual content analysis. Return JSON ONLY.`;
 
   const userPrompt = `Summarize and analyze this article for a consumer app. Follow the schema exactly.
 
 CRITICAL REQUIREMENTS:
-- tldr.paragraphs: EXACTLY 2-3 short paragraphs (2-4 sentences each)
-- eli5.summary: EXACTLY 3-6 sentences, kid-friendly tone, include optional analogy
-- why_it_matters: EXACTLY 4-6 bullets  
+- tldr.paragraphs: EXACTLY 3-5 sentences (rich, informative bullets)
+- eli5.summary: EXACTLY 4-6 sentences, kid-friendly tone, plus analogy sentence
+- why_it_matters: EXACTLY 4-6 bullets explaining significance
 - key_points: EXACTLY 5-8 bullets with tags from: fact, timeline, stakeholders, numbers
-- perspectives: EXACTLY 2 labeled blocks, each with 1-2 sentence summary + 3-5 bullets
-- common_ground: EXACTLY 3-5 bullets showing shared agreements
-- glossary: EXACTLY 4-8 clear, Gen-Z/ESL-friendly items
-- follow_up_questions: EXACTLY 3-6 specific, curiosity-driven questions
-- bias/sentiment: integers summing to 100, avoid 33/34/33 splits unless truly balanced
+- perspectives: EXACTLY 2 perspectives, each with label, 2-3 sentence summary, 3-5 bullets
+- common_ground: EXACTLY 3 bullets showing shared agreements
+- glossary: EXACTLY 5-8 items (ESL-friendly, avoid jargon)
+- follow_up_questions: EXACTLY 3 questions with one-sentence answers as [{"q": "question", "a": "answer"}]
+- bias: left/center/right integers must sum to 100, provide short rationale, MUST NOT return 33/34/33 unless truly balanced
+- sentiment: positive/neutral/negative integers must sum to 100, non-static distribution
+
+Title cleaning: Remove domain suffixes like "– CNN", "| Reuters", "(AP)" from title
 
 Meta:
 Domain: ${domain}
@@ -370,10 +405,13 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
     confidence = "high";
   }
 
-  // Sanitize and build final analysis
+  // Clean the title and build final analysis
+  const rawTitle = String(passA?.meta?.title || passA?.title || "Untitled article");
+  const cleanTitle = sanitizeTitle(rawTitle, domain);
+  
   const analysis: ArticleAnalysis = {
     meta: {
-      title: String(passA?.meta?.title || passA?.title || "Untitled article"),
+      title: cleanTitle,
       domain,
       byline: String(passA?.meta?.byline || "Unknown"),
       published_at: String(passA?.meta?.published_at || "unknown"),
@@ -432,7 +470,15 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
     source_mix: getSourceMix(domain, passA?.meta?.title || ""),
     reading_time_minutes: Math.max(1, Math.ceil(wordCount / 200)),
     privacy_note: "Auto-deletes after 24h",
-    follow_up_questions: asArray<string>(passA?.follow_up_questions).slice(0, 3).filter(x => x),
+    follow_up_questions: asArray<any>(passA?.follow_up_questions).slice(0, 3).map(q => {
+      if (typeof q === 'string') {
+        return { q, a: 'This question helps you think deeper about the article\'s implications and context.' };
+      }
+      return {
+        q: String(q?.q || q?.question || ''),
+        a: String(q?.a || q?.answer || 'This question helps you think deeper about the article\'s implications and context.')
+      };
+    }).filter(item => item.q),
   };
 
   console.log(`news.process: model=${modelUsed} result=ok id=pending wc=${wordCount}`);

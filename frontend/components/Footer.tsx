@@ -1,46 +1,56 @@
-import { Newspaper } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
   
   return (
-    <footer id="contact" className="bg-white border-t border-gray-200">
+    <footer className="bg-[#0B1B2B] text-white">
       <div className="max-w-6xl mx-auto px-4 py-12">
-        <div className="flex flex-col items-center text-center">
-          {/* Logo and tagline */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-[#8FA573] rounded-lg">
-              <Newspaper className="h-6 w-6 text-white" />
-            </div>
-            <span className="text-xl font-bold text-[#2C3E50] font-['Inter',system-ui,sans-serif]">
-              Explain the News
+        {/* First row: Brand and value props */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 pb-8 border-b border-gray-700">
+          <div className="flex items-center gap-3 mb-4 md:mb-0">
+            <BookOpen className="h-8 w-8 text-[#8FA573]" />
+            <span className="text-2xl font-bold">Unspin</span>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-300">
+            <span className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-[#8FA573] rounded-full"></div>
+              Privacy-focused
+            </span>
+            <span>•</span>
+            <span className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-[#8FA573] rounded-full"></div>
+              Auto-delete
+            </span>
+            <span>•</span>
+            <span className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-[#8FA573] rounded-full"></div>
+              No tracking
             </span>
           </div>
-          
-          {/* Value props row */}
-          <p className="text-gray-600 mb-8 font-['Inter',system-ui,sans-serif]">
-            AI-powered summaries · Bias-aware · Auto-delete · No tracking
-          </p>
-          
-          {/* Links row */}
-          <div className="flex items-center gap-6 mb-8">
-            <a href="#" className="text-gray-600 hover:text-[#2C3E50] transition-colors font-['Inter',system-ui,sans-serif]">
-              About
+        </div>
+        
+        {/* Second row: Links and legal */}
+        <div className="flex flex-col md:flex-row items-center justify-between">
+          <div className="flex items-center gap-6 mb-4 md:mb-0">
+            <Link to="/faq" className="text-gray-300 hover:text-white transition-colors">
+              FAQ
+            </Link>
+            <a href="#contact" className="text-gray-300 hover:text-white transition-colors">
+              Contact
             </a>
-            <a href="#" className="text-gray-600 hover:text-[#2C3E50] transition-colors font-['Inter',system-ui,sans-serif]">
+            <a href="#" className="text-gray-300 hover:text-white transition-colors">
               Privacy
             </a>
-            <a href="#" className="text-gray-600 hover:text-[#2C3E50] transition-colors font-['Inter',system-ui,sans-serif]">
+            <a href="#" className="text-gray-300 hover:text-white transition-colors">
               Terms
-            </a>
-            <a href="#" className="text-gray-600 hover:text-[#2C3E50] transition-colors font-['Inter',system-ui,sans-serif]">
-              Contact
             </a>
           </div>
           
-          {/* Copyright */}
-          <p className="text-gray-500 text-sm font-['Inter',system-ui,sans-serif]">
-            © {currentYear} Explain the News
+          <p className="text-gray-400 text-sm">
+            © {currentYear} Unspin
           </p>
         </div>
       </div>

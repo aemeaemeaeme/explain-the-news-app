@@ -1,5 +1,6 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft } from 'lucide-react';
 import backend from '~backend/client';
 import type { Article } from '~backend/news/get';
 import ArticleCard from '../components/ArticleCard';
@@ -9,6 +10,7 @@ import Header from '../components/Header';
 
 export default function ArticlePage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
 
   const {
     data: article,
@@ -81,6 +83,15 @@ export default function ArticlePage() {
       <main className="relative px-4 py-12">
         <ArticleCard article={article} />
       </main>
+      
+      {/* Sticky mobile back button */}
+      <button
+        onClick={() => navigate('/')}
+        className="fixed bottom-6 right-6 md:hidden bg-[#8FA573] hover:bg-[#738a5f] text-white p-3 rounded-full shadow-lg transition-colors z-50"
+        aria-label="Back to input"
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </button>
     </div>
   );
 }

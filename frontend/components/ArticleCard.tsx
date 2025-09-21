@@ -1,5 +1,6 @@
 import React from 'react';
-import { Clock, Share, Handshake } from 'lucide-react';
+import { Clock, Share, Handshake, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import BiasBar from './BiasBar';
 import SentimentBar from './SentimentBar';
 import GlossaryTooltip from './GlossaryTooltip';
@@ -11,6 +12,8 @@ interface ArticleCardProps {
 }
 
 export default function ArticleCard({ article }: ArticleCardProps) {
+  const navigate = useNavigate();
+  
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
@@ -57,13 +60,15 @@ export default function ArticleCard({ article }: ArticleCardProps) {
     <article className="bg-white rounded-3xl shadow-xl p-8 md:p-12 max-w-4xl mx-auto">
       {/* Title */}
       <div className="mb-6">
-        <h1 className="text-3xl md:text-4xl font-bold text-[#2C3E50] mb-4 leading-tight font-['Inter',system-ui,sans-serif]">
+        <h1 className="text-3xl md:text-4xl font-bold text-[#0B1B2B] mb-4 leading-tight">
           {article.meta.title}
         </h1>
         
         {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 mb-2 font-['Inter',system-ui,sans-serif]">
-          <span>{article.source_mix}</span>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 mb-2">
+          <span>{article.meta.byline || 'Staff reporting'}</span>
+          <span>•</span>
+          <span>{article.meta.domain}</span>
           <span>•</span>
           <span className="flex items-center gap-1">
             <Clock className="h-4 w-4" />
@@ -74,11 +79,18 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         </div>
       </div>
 
-      {/* Share button */}
-      <div className="flex justify-end mb-8">
+      {/* Action buttons */}
+      <div className="flex justify-between items-center mb-8">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to input
+        </button>
         <button
           onClick={handleShare}
-          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors font-['Inter',system-ui,sans-serif]"
+          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
         >
           <Share className="h-4 w-4" />
           Share
@@ -88,7 +100,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       <div className="space-y-10">
         {/* TL;DR */}
         <section>
-          <h2 className="text-2xl font-semibold text-[#2C3E50] mb-4 font-['Inter',system-ui,sans-serif]">TL;DR</h2>
+          <h2 className="text-2xl font-semibold text-[#0B1B2B] mb-4">TL;DR</h2>
           <div className="space-y-3">
             {article.tldr.paragraphs && article.tldr.paragraphs.length > 0 ? (
               article.tldr.paragraphs.map((paragraph, index) => (
@@ -105,7 +117,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* ELI5 */}
         <section>
-          <h2 className="text-2xl font-semibold text-[#2C3E50] mb-4 font-['Inter',system-ui,sans-serif]">Explain Like I'm 5</h2>
+          <h2 className="text-2xl font-semibold text-[#0B1B2B] mb-4">Explain Like I'm 5</h2>
           <div className="space-y-4">
             <p className="text-gray-700 leading-relaxed font-['Inter',system-ui,sans-serif]">{article.eli5.summary}</p>
             {article.eli5.analogy && (
@@ -120,7 +132,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Why It Matters */}
         <section>
-          <h2 className="text-2xl font-semibold text-[#2C3E50] mb-4 font-['Inter',system-ui,sans-serif]">Why It Matters</h2>
+          <h2 className="text-2xl font-semibold text-[#0B1B2B] mb-4">Why It Matters</h2>
           {article.why_it_matters.length > 0 ? (
             <ul className="space-y-3">
               {article.why_it_matters.map((point, index) => (
@@ -137,7 +149,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Key Points */}
         <section>
-          <h2 className="text-2xl font-semibold text-[#2C3E50] mb-4 font-['Inter',system-ui,sans-serif]">Key Points</h2>
+          <h2 className="text-2xl font-semibold text-[#0B1B2B] mb-4">Key Points</h2>
           {article.key_points.length > 0 ? (
             <div className="grid gap-3">
               {article.key_points.map((point, index) => (
@@ -161,7 +173,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Bias Analysis */}
         <section>
-          <h2 className="text-2xl font-semibold text-[#2C3E50] mb-4 font-['Inter',system-ui,sans-serif]">Bias Analysis</h2>
+          <h2 className="text-2xl font-semibold text-[#0B1B2B] mb-4">Bias Analysis</h2>
           <BiasBar 
             left={article.bias.left}
             center={article.bias.center}
@@ -177,7 +189,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Sentiment Analysis */}
         <section>
-          <h2 className="text-2xl font-semibold text-[#2C3E50] mb-4 font-['Inter',system-ui,sans-serif]">Sentiment Analysis</h2>
+          <h2 className="text-2xl font-semibold text-[#0B1B2B] mb-4">Sentiment Analysis</h2>
           <SentimentBar 
             positive={article.sentiment.positive}
             neutral={article.sentiment.neutral}
@@ -188,34 +200,67 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Perspectives */}
         <section>
-          <h2 className="text-2xl font-semibold text-[#2C3E50] mb-4 font-['Inter',system-ui,sans-serif]">Different Perspectives</h2>
+          <h2 className="text-2xl font-semibold text-[#0B1B2B] mb-4">Different Perspectives</h2>
           {article.perspectives.length >= 2 ? (
-            <div className="grid md:grid-cols-2 gap-6">
-              {article.perspectives.slice(0, 2).map((perspective, index) => (
-                <div key={index} className="bg-[#E6F0FF] p-6 rounded-xl border border-[#5C8CF0]/20">
-                  <h3 className="font-semibold text-[#2C3E50] mb-2 font-['Inter',system-ui,sans-serif]">{perspective.label}</h3>
-                  <p className="text-gray-700 mb-3 font-['Inter',system-ui,sans-serif]">{perspective.summary}</p>
-                  {perspective.bullets.length > 0 && (
-                    <ul className="space-y-2">
-                      {perspective.bullets.map((bullet, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <div className="w-1.5 h-1.5 bg-[#5C8CF0] rounded-full mt-2 flex-shrink-0"></div>
-                          <span className="text-gray-600 text-sm font-['Inter',system-ui,sans-serif]">{bullet}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+            <>
+              {/* Mobile/Tablet: Card layout */}
+              <div className="grid gap-6 lg:hidden md:grid-cols-2">
+                {article.perspectives.slice(0, 2).map((perspective, index) => (
+                  <div key={index} className="bg-[#D9EAF7] p-6 rounded-xl border border-[#D9EAF7]">
+                    <h3 className="font-semibold text-[#0B1B2B] mb-2">{perspective.label}</h3>
+                    <p className="text-gray-700 mb-3">{perspective.summary}</p>
+                    {perspective.bullets.length > 0 && (
+                      <ul className="space-y-2">
+                        {perspective.bullets.map((bullet, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <div className="w-1.5 h-1.5 bg-[#0B1B2B] rounded-full mt-2 flex-shrink-0"></div>
+                            <span className="text-gray-600 text-sm">{bullet}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              {/* Desktop: Table layout */}
+              <div className="hidden lg:block">
+                <div className="bg-[#D9EAF7]/30 rounded-xl overflow-hidden border border-[#D9EAF7]">
+                  <div className="grid grid-cols-2 bg-[#D9EAF7] text-[#0B1B2B] font-semibold">
+                    {article.perspectives.slice(0, 2).map((perspective, index) => (
+                      <div key={index} className="p-4 text-center border-r border-[#0B1B2B]/10 last:border-r-0">
+                        {perspective.label}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2">
+                    {article.perspectives.slice(0, 2).map((perspective, index) => (
+                      <div key={index} className="p-6 border-r border-[#D9EAF7] last:border-r-0">
+                        <p className="text-gray-700 mb-4">{perspective.summary}</p>
+                        {perspective.bullets.length > 0 && (
+                          <ul className="space-y-2">
+                            {perspective.bullets.map((bullet, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <div className="w-1.5 h-1.5 bg-[#0B1B2B] rounded-full mt-2 flex-shrink-0"></div>
+                                <span className="text-gray-600 text-sm">{bullet}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            </>
           ) : (
-            <p className="text-gray-500 italic font-['Inter',system-ui,sans-serif]">No items available.</p>
+            <p className="text-gray-500 italic">No items available.</p>
           )}
         </section>
 
         {/* Common Ground */}
         <section>
-          <h2 className="text-2xl font-semibold text-[#2C3E50] mb-4 flex items-center gap-2 font-['Inter',system-ui,sans-serif]">
+          <h2 className="text-2xl font-semibold text-[#0B1B2B] mb-4 flex items-center gap-2">
             <Handshake className="h-6 w-6 text-[#8FA573]" />
             Common Ground
           </h2>
@@ -235,7 +280,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Glossary */}
         <section>
-          <h2 className="text-2xl font-semibold text-[#2C3E50] mb-4 font-['Inter',system-ui,sans-serif]">Glossary</h2>
+          <h2 className="text-2xl font-semibold text-[#0B1B2B] mb-4">Glossary</h2>
           {article.glossary.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {article.glossary.map((item, index) => (
@@ -254,7 +299,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Follow-up Questions */}
         <section>
-          <h2 className="text-2xl font-semibold text-[#2C3E50] mb-4 font-['Inter',system-ui,sans-serif]">Follow-up Questions</h2>
+          <h2 className="text-2xl font-semibold text-[#0B1B2B] mb-4">Follow-up Questions</h2>
           <FollowUpQuestions questions={article.follow_up_questions} />
         </section>
       </div>

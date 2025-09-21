@@ -1,7 +1,17 @@
+import { useState } from 'react';
 import BiasBar from './BiasBar';
-import { Clock, Share, Eye, Handshake, Copy, ChevronDown } from 'lucide-react';
+import { Clock, Share, Copy, ChevronDown, ChevronUp, Handshake } from 'lucide-react';
 
 export default function Demo() {
+  const [expandedQuestions, setExpandedQuestions] = useState<number[]>([]);
+
+  const toggleQuestion = (index: number) => {
+    setExpandedQuestions(prev => 
+      prev.includes(index) 
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    );
+  };
   const demoArticle = {
     title: "Global Climate Summit Reaches Historic Agreement",
     tldr: {
@@ -71,9 +81,18 @@ export default function Demo() {
     readingTime: 4,
     sourceInfo: "Wire service – Reuters",
     followupQuestions: [
-      "What happens if countries don't meet their targets?",
-      "How will this affect gas prices and energy costs?", 
-      "Which technologies are most promising for reaching these goals?"
+      {
+        question: "What happens if countries don't meet their targets?",
+        answer: "The agreement includes stepped enforcement mechanisms, starting with public accountability reports and potentially escalating to trade restrictions."
+      },
+      {
+        question: "How will this affect gas prices and energy costs?",
+        answer: "Short-term costs may increase as fossil fuel supply is limited, but long-term renewable energy investments should lower overall energy costs."
+      },
+      {
+        question: "Which technologies are most promising for reaching these goals?",
+        answer: "Solar and wind power, battery storage, electric vehicles, and green hydrogen are seen as the key technologies for meeting emission targets."
+      }
     ]
   };
 
@@ -102,7 +121,7 @@ export default function Demo() {
       
       <div className="relative max-w-5xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-[#2C3E50] mb-6 font-['Inter',system-ui,sans-serif]">
+          <h2 className="text-4xl md:text-5xl font-bold text-[#0B1B2B] mb-6">
             See It In Action
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto font-['Inter',system-ui,sans-serif]">
@@ -114,7 +133,7 @@ export default function Demo() {
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
             <div className="flex-1">
-              <h3 className="text-2xl font-bold text-[#2C3E50] mb-2 font-['Inter',system-ui,sans-serif]">
+              <h3 className="text-2xl font-bold text-[#0B1B2B] mb-2">
                 {demoArticle.title}
               </h3>
               <div className="flex items-center gap-4 text-sm text-gray-500 font-['Inter',system-ui,sans-serif]">
@@ -124,6 +143,8 @@ export default function Demo() {
                   <Clock className="h-4 w-4" />
                   {demoArticle.readingTime} min read
                 </span>
+                <span>•</span>
+                <span>reuters.com</span>
                 <span>•</span>
                 <span>Tone: factual</span>
               </div>
@@ -137,7 +158,7 @@ export default function Demo() {
           <div className="space-y-8">
             {/* TL;DR */}
             <div>
-              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">TL;DR</h4>
+              <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">TL;DR</h4>
               <div className="space-y-3">
                 {demoArticle.tldr.paragraphs.map((paragraph, index) => (
                   <p key={index} className="text-gray-700 font-['Inter',system-ui,sans-serif]">{paragraph}</p>
@@ -147,7 +168,7 @@ export default function Demo() {
 
             {/* ELI5 */}
             <div>
-              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Explain Like I'm 5</h4>
+              <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Explain Like I'm 5</h4>
               <p className="text-gray-700 mb-3 font-['Inter',system-ui,sans-serif]">{demoArticle.eli5.summary}</p>
               <div className="bg-[#E6F0FF] p-4 rounded-xl border border-[#5C8CF0]/20">
                 <p className="text-gray-700 font-['Inter',system-ui,sans-serif]">
@@ -158,7 +179,7 @@ export default function Demo() {
 
             {/* Why It Matters */}
             <div>
-              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Why It Matters</h4>
+              <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Why It Matters</h4>
               <ul className="space-y-2">
                 {demoArticle.whyMatters.map((point, index) => (
                   <li key={index} className="flex items-start gap-3">
@@ -171,7 +192,7 @@ export default function Demo() {
 
             {/* Key Points */}
             <div>
-              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Key Points</h4>
+              <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Key Points</h4>
               <div className="grid gap-3">
                 {demoArticle.keyPoints.map((point, index) => (
                   <div key={index} className="flex items-start gap-3">
@@ -191,7 +212,7 @@ export default function Demo() {
 
             {/* Bias Analysis */}
             <div>
-              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Bias Analysis</h4>
+              <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Bias Analysis</h4>
               <BiasBar 
                 left={demoArticle.bias.left}
                 center={demoArticle.bias.center}
@@ -202,7 +223,7 @@ export default function Demo() {
 
             {/* Sentiment Analysis */}
             <div>
-              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Sentiment Analysis</h4>
+              <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Sentiment Analysis</h4>
               <div className="flex rounded-lg overflow-hidden h-8 mb-2">
                 <div 
                   className="bg-[#8FA573] flex items-center justify-center text-white text-sm font-medium"
@@ -232,7 +253,7 @@ export default function Demo() {
 
             {/* Perspectives */}
             <div>
-              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Different Perspectives</h4>
+              <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Different Perspectives</h4>
               <div className="grid md:grid-cols-2 gap-6">
                 {demoArticle.perspectives.map((perspective, index) => (
                   <div key={index} className="bg-[#E6F0FF] p-6 rounded-xl border border-[#5C8CF0]/20">
@@ -253,7 +274,7 @@ export default function Demo() {
 
             {/* Common Ground */}
             <div>
-              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 flex items-center gap-2 font-['Inter',system-ui,sans-serif]">
+              <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3 flex items-center gap-2">
                 <Handshake className="h-5 w-5 text-[#8FA573]" />
                 Common Ground
               </h4>
@@ -269,7 +290,7 @@ export default function Demo() {
 
             {/* Glossary */}
             <div>
-              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Glossary</h4>
+              <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Glossary</h4>
               <div className="flex flex-wrap gap-2">
                 {demoArticle.glossary.map((item, index) => (
                   <span
@@ -285,12 +306,26 @@ export default function Demo() {
 
             {/* Follow-up Questions */}
             <div>
-              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Follow-up Questions</h4>
+              <h4 className="text-lg font-semibold text-[#0B1B2B] mb-3">Follow-up Questions</h4>
               <div className="space-y-3">
-                {demoArticle.followupQuestions.map((question, index) => (
-                  <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
-                    <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                    <span className="text-gray-700 font-['Inter',system-ui,sans-serif]">{question}</span>
+                {demoArticle.followupQuestions.map((item, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div 
+                      className="flex items-center gap-3 p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => toggleQuestion(index)}
+                    >
+                      {expandedQuestions.includes(index) ? (
+                        <ChevronUp className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                      )}
+                      <span className="text-gray-700 font-medium">{item.question}</span>
+                    </div>
+                    {expandedQuestions.includes(index) && (
+                      <div className="p-4 bg-white border-t border-gray-200">
+                        <p className="text-gray-600">{item.answer}</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
