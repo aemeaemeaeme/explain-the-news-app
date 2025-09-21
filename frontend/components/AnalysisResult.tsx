@@ -4,19 +4,19 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import BiasBar from './BiasBar';
 import SentimentBar from './SentimentBar';
-// import GlossaryTooltip from './GlossaryTooltip'; // (unused right now)
+import GlossaryTooltip from './GlossaryTooltip';
 import { useNavigate } from 'react-router-dom';
 
 interface AnalysisProps {
-  status: 'full' | 'limited';
+  status: "full" | "limited";
   meta: {
     title: string;
     source: string;
     author: string | null;
     published: string | null;
     reading_minutes: number;
-    tone: 'factual' | 'analytical' | 'opinion' | 'mixed';
-    provider: 'gemini' | 'openai';
+    tone: "factual" | "analytical" | "opinion" | "mixed";
+    provider: "gemini" | "openai";
     model: string;
     fallback_used: boolean;
   };
@@ -24,14 +24,14 @@ interface AnalysisProps {
   eli5: string;
   why_it_matters: string[];
   key_points: Array<{
-    tag: 'fact' | 'numbers' | 'timeline' | 'stakeholders' | 'quote';
+    tag: "fact" | "numbers" | "timeline" | "stakeholders" | "quote";
     text: string;
   }>;
   bias_analysis: {
     left: number;
     center: number;
     right: number;
-    confidence: 'low' | 'med' | 'high';
+    confidence: "low" | "med" | "high";
     notes: string;
   };
   sentiment: {
@@ -63,33 +63,22 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
 
   const getTagColor = (tag: string) => {
     switch (tag) {
-      case 'fact':
-        return 'bg-blue-100 text-blue-800';
-      case 'timeline':
-        return 'bg-green-100 text-green-800';
-      case 'numbers':
-        return 'bg-purple-100 text-purple-800';
-      case 'stakeholders':
-        return 'bg-orange-100 text-orange-800';
-      case 'quote':
-        return 'bg-pink-100 text-pink-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'fact': return 'bg-blue-100 text-blue-800';
+      case 'timeline': return 'bg-green-100 text-green-800';
+      case 'numbers': return 'bg-purple-100 text-purple-800';
+      case 'stakeholders': return 'bg-orange-100 text-orange-800';
+      case 'quote': return 'bg-pink-100 text-pink-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getToneColor = (tone: string) => {
     switch (tone) {
-      case 'factual':
-        return 'bg-blue-100 text-blue-800';
-      case 'analytical':
-        return 'bg-green-100 text-green-800';
-      case 'mixed':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'opinion':
-        return 'bg-purple-100 text-purple-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+      case 'factual': return 'bg-blue-100 text-blue-800';
+      case 'analytical': return 'bg-green-100 text-green-800';
+      case 'mixed': return 'bg-yellow-100 text-yellow-800';
+      case 'opinion': return 'bg-purple-100 text-purple-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -107,18 +96,12 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Search
             </Button>
-
             <Badge
               variant="outline"
-              className={`${
-                analysis.status === 'full'
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-yellow-100 text-yellow-800'
-              }`}
+              className={`${analysis.status === 'full' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}
             >
               {analysis.status === 'full' ? 'Full Analysis' : 'Limited Analysis'}
             </Badge>
-
             {analysis.meta.fallback_used && (
               <Badge variant="outline" className="bg-orange-100 text-orange-800">
                 <AlertTriangle className="h-3 w-3 mr-1" />
@@ -131,18 +114,14 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
 
           <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
             {analysis.meta.author && <span>By {analysis.meta.author}</span>}
-
             {analysis.meta.reading_minutes && (
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 <span>{analysis.meta.reading_minutes} min read</span>
               </div>
             )}
-
             <span className="capitalize">{analysis.meta.source}</span>
-
             <Badge className={getToneColor(analysis.meta.tone)}>{analysis.meta.tone}</Badge>
-
             {analysis.meta.source !== 'user_input' && (
               <a
                 href={`https://${analysis.meta.source}`}
@@ -156,7 +135,6 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
             )}
           </div>
 
-          {/* Provider Badge */}
           <div className="mt-4">
             <Badge variant="secondary" className="text-xs">
               {analysis.meta.provider === 'openai' ? 'OpenAI' : 'Gemini'} • {analysis.meta.model}
@@ -188,19 +166,9 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
                       <FileText className="h-4 w-4 mr-2" />
                       Paste Article Text
                     </Button>
-
                     {analysis.meta.source !== 'user_input' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        asChild
-                        className="border-yellow-300 text-yellow-800 hover:bg-yellow-100"
-                      >
-                        <a
-                          href={`https://${analysis.meta.source}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
+                      <Button variant="outline" size="sm" asChild className="border-yellow-300 text-yellow-800 hover:bg-yellow-100">
+                        <a href={`https://${analysis.meta.source}`} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="h-4 w-4 mr-2" />
                           Open Original
                         </a>
@@ -215,33 +183,23 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
 
         {/* TL;DR */}
         <Card>
-          <CardHeader>
-            <CardTitle>TL;DR</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg">{analysis.tldr}</p>
-          </CardContent>
+          <CardHeader><CardTitle>TL;DR</CardTitle></CardHeader>
+          <CardContent><p className="text-lg">{analysis.tldr}</p></CardContent>
         </Card>
 
         {/* ELI5 */}
         <Card>
-          <CardHeader>
-            <CardTitle>Explain Like I'm 5</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{analysis.eli5}</p>
-          </CardContent>
+          <CardHeader><CardTitle>Explain Like I'm 5</CardTitle></CardHeader>
+          <CardContent><p>{analysis.eli5}</p></CardContent>
         </Card>
 
         {/* Why It Matters */}
         <Card>
-          <CardHeader>
-            <CardTitle>Why It Matters</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Why It Matters</CardTitle></CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              {analysis.why_it_matters.map((matter, index) => (
-                <li key={index} className="flex items-start gap-2">
+              {analysis.why_it_matters.map((matter, i) => (
+                <li key={i} className="flex items-start gap-2">
                   <span className="text-blue-600 mt-1">•</span>
                   <span>{matter}</span>
                 </li>
@@ -252,16 +210,12 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
 
         {/* Key Points */}
         <Card>
-          <CardHeader>
-            <CardTitle>Key Points</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Key Points</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {analysis.key_points.map((point, index) => (
-                <div key={index} className="flex items-start gap-3">
-                  <Badge className={getTagColor(point.tag)} variant="secondary">
-                    {point.tag}
-                  </Badge>
+              {analysis.key_points.map((point, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <Badge className={getTagColor(point.tag)} variant="secondary">{point.tag}</Badge>
                   <span className="flex-1">{point.text}</span>
                 </div>
               ))}
@@ -269,11 +223,9 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </CardContent>
         </Card>
 
-        {/* Bias Analysis */}
+        {/* Bias */}
         <Card>
-          <CardHeader>
-            <CardTitle>Bias Analysis</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Bias Analysis</CardTitle></CardHeader>
           <CardContent>
             <BiasBar
               left={analysis.bias_analysis.left}
@@ -287,9 +239,7 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
 
         {/* Sentiment */}
         <Card>
-          <CardHeader>
-            <CardTitle>Sentiment Analysis</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Sentiment</CardTitle></CardHeader>
           <CardContent>
             <SentimentBar
               positive={analysis.sentiment.positive}
@@ -302,61 +252,55 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
 
         {/* Different Perspectives */}
         {analysis?.perspectives && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Different Perspectives</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 lg:gap-8 grid-cols-1 lg:grid-cols-2">
-                {/* Left */}
-                <div className="pill">
-                  <h3 className="text-2xl md:text-3xl">Climate Action Advocates</h3>
-                  <ul className="text-lg md:text-xl">
-                    {(analysis.perspectives.left_view ?? []).map((pt: string, i: number) => (
-                      <li key={`left-${i}`}>{pt}</li>
-                    ))}
-                  </ul>
-                </div>
+          <>
+            <h2 className="headline-font text-3xl md:text-4xl text-ink mb-6">Different Perspectives</h2>
 
-                {/* Right */}
-                <div className="pill">
-                  <h3 className="text-2xl md:text-3xl">Industry &amp; Economic Concerns</h3>
-                  <ul className="text-lg md:text-xl">
-                    {(analysis.perspectives.right_view ?? []).map((pt: string, i: number) => (
-                      <li key={`right-${i}`}>{pt}</li>
-                    ))}
-                  </ul>
-                </div>
+            <div className="grid gap-6 lg:gap-8 grid-cols-1 lg:grid-cols-2">
+              <div className="pill">
+                <h3 className="text-2xl md:text-3xl">Climate Action Advocates</h3>
+                <ul className="text-lg md:text-xl">
+                  {(analysis.perspectives.left_view ?? []).map((pt: string, i: number) => (
+                    <li key={`left-${i}`}>{pt}</li>
+                  ))}
+                </ul>
               </div>
 
-              {/* Center (optional, full width) */}
-              {(analysis.perspectives.center_view ?? []).length > 0 && (
-                <div className="mt-8">
-                  <h4 className="font-semibold text-gray-700 mb-3">Centrist View</h4>
-                  <ul className="grid gap-2 md:grid-cols-2">
-                    {analysis.perspectives.center_view.map((view, index) => (
-                      <li key={`center-${index}`} className="flex items-start gap-2">
+              <div className="pill">
+                <h3 className="text-2xl md:text-3xl">Industry &amp; Economic Concerns</h3>
+                <ul className="text-lg md:text-xl">
+                  {(analysis.perspectives.right_view ?? []).map((pt: string, i: number) => (
+                    <li key={`right-${i}`}>{pt}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            {analysis.perspectives.center_view?.length > 0 && (
+              <Card>
+                <CardHeader><CardTitle>Centrist View</CardTitle></CardHeader>
+                <CardContent>
+                  <ul className="space-y-1 text-base">
+                    {analysis.perspectives.center_view.map((view, i) => (
+                      <li key={i} className="flex items-start gap-2">
                         <span className="text-green-600 mt-1">•</span>
                         <span>{view}</span>
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            )}
+          </>
         )}
 
         {/* Common Ground */}
         {analysis.common_ground.length > 0 && (
           <Card>
-            <CardHeader>
-              <CardTitle>Common Ground</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Common Ground</CardTitle></CardHeader>
             <CardContent>
               <ul className="space-y-2">
-                {analysis.common_ground.map((ground, index) => (
-                  <li key={index} className="flex items-start gap-2">
+                {analysis.common_ground.map((ground, i) => (
+                  <li key={i} className="flex items-start gap-2">
                     <span className="text-green-600 mt-1">•</span>
                     <span>{ground}</span>
                   </li>
@@ -369,13 +313,11 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
         {/* Glossary */}
         {analysis.glossary.length > 0 && (
           <Card>
-            <CardHeader>
-              <CardTitle>Glossary</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Glossary</CardTitle></CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 gap-4">
-                {analysis.glossary.map((item, index) => (
-                  <div key={index} className="border-l-4 border-blue-200 pl-4">
+                {analysis.glossary.map((item, i) => (
+                  <div key={i} className="border-l-4 border-blue-200 pl-4">
                     <h4 className="font-semibold text-sm">{item.term}</h4>
                     <p className="text-sm text-gray-600">{item.definition}</p>
                   </div>
@@ -385,16 +327,14 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </Card>
         )}
 
-        {/* Follow-up Questions */}
-        {analysis.followups && analysis.followups.length > 0 && (
+        {/* Follow-ups */}
+        {analysis.followups?.length > 0 && (
           <Card>
-            <CardHeader>
-              <CardTitle>Follow-up Questions</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Follow-up Questions</CardTitle></CardHeader>
             <CardContent>
               <ul className="space-y-2">
-                {analysis.followups.map((question, index) => (
-                  <li key={index} className="flex items-start gap-2">
+                {analysis.followups.map((question, i) => (
+                  <li key={i} className="flex items-start gap-2">
                     <span className="text-blue-600 mt-1">?</span>
                     <span>{question}</span>
                   </li>
@@ -405,16 +345,12 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
         )}
 
         {/* Processing Notes */}
-        {analysis.processing_notes && analysis.processing_notes.length > 0 && (
+        {analysis.processing_notes?.length > 0 && (
           <Card className="border-gray-200 bg-gray-50">
-            <CardHeader>
-              <CardTitle className="text-gray-800">Processing Notes</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-gray-800">Processing Notes</CardTitle></CardHeader>
             <CardContent>
               <ul className="space-y-1 text-sm text-gray-700">
-                {analysis.processing_notes.map((note, index) => (
-                  <li key={index}>• {note}</li>
-                ))}
+                {analysis.processing_notes.map((note, i) => (<li key={i}>• {note}</li>))}
               </ul>
             </CardContent>
           </Card>
