@@ -103,9 +103,9 @@ export default function ContactPage() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Hero Section */}
         <div className="text-center mb-16">
-          <h1 className="display-font text-4xl sm:text-5xl lg:text-6xl mb-6">
-            <span style={{color: 'var(--navy)'}}>Get in</span>{' '}
-            <span style={{color: 'var(--olive)'}}>Touch</span>
+          <h1 className="headline-font text-4xl sm:text-5xl lg:text-6xl mb-6">
+            <span style={{color: 'var(--ink)'}}>Get in</span>{' '}
+            <span style={{color: 'var(--sage)'}}>Touch</span>
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Have questions about Unspin? Want to partner with us? We'd love to hear from you.
@@ -193,7 +193,7 @@ export default function ContactPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="btn-olive px-8 py-3 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-blush px-8 py-3 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? 'Sending...' : 'Send Message'}
               </Button>

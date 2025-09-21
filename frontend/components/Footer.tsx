@@ -11,24 +11,17 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 pb-8 border-b border-gray-300">
           <div className="flex items-center gap-3 mb-4 md:mb-0">
             <BookOpen className="h-8 w-8" style={{color: 'var(--sage)'}} />
-            <span className="text-2xl brand-bold" style={{color: 'var(--ink)'}}>Unspin</span>
+            <span className="text-2xl headline-font" style={{color: 'var(--ink)'}}>Unspin</span>
           </div>
           
           <div className="flex flex-wrap items-center gap-3 text-sm" style={{color: 'var(--ink)'}}>
-            <span className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
-              Privacy-focused
-            </span>
+            <span>Bias-aware analysis</span>
             <span>•</span>
-            <span className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
-              Auto-delete
-            </span>
+            <span>Privacy-focused</span>
             <span>•</span>
-            <span className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
-              No tracking
-            </span>
+            <span>Auto-delete</span>
+            <span>•</span>
+            <span>No tracking</span>
           </div>
         </div>
         
@@ -52,9 +45,21 @@ export default function Footer() {
             </a>
           </div>
           
-          <p className="text-gray-500 text-sm">
-            © {currentYear} Unspin
-          </p>
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <a
+              href="#"
+              className="btn-blush px-6 py-2 font-semibold text-sm"
+              onClick={(e) => {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
+              Try it free
+            </a>
+            <p className="text-gray-500 text-sm">
+              © {currentYear} Unspin
+            </p>
+          </div>
         </div>
       </div>
     </footer>

@@ -44,7 +44,7 @@ export default function Header() {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
             <BookOpen className="h-8 w-8" style={{color: 'var(--sage)'}} />
-            <span className="text-xl brand-bold" style={{color: 'var(--ink)'}}>Unspin</span>
+            <span className="text-xl headline-font" style={{color: 'var(--ink)'}}>Unspin</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -64,7 +64,7 @@ export default function Header() {
           <div className="hidden md:block">
             <Button
               onClick={() => navigate('/')}
-              className="btn-sage px-6 py-2 rounded-lg font-semibold focus-ring"
+              className="btn-blush px-6 py-2 font-semibold focus-ring"
             >
               Try it free
             </Button>
@@ -85,7 +85,7 @@ export default function Header() {
                   onClick={() => setIsOpen(false)}
                 >
                   <BookOpen className="h-6 w-6" style={{color: 'var(--sage)'}} />
-                  <span className="text-lg brand-bold" style={{color: 'var(--ink)'}}>Unspin</span>
+                  <span className="text-lg headline-font" style={{color: 'var(--ink)'}}>Unspin</span>
                 </Link>
                 
                 {navigationItems.map((item) => (
@@ -104,7 +104,7 @@ export default function Header() {
                     navigate('/');
                     setIsOpen(false);
                   }}
-                  className="btn-sage mt-4 w-full"
+                  className="btn-blush mt-4 w-full"
                 >
                   Try it free
                 </Button>

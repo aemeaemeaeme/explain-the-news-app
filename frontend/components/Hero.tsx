@@ -61,7 +61,7 @@ export default function Hero() {
   return (
     <section className="relative py-24 px-4 bg-[#F7F7F7]">
       <div className="relative max-w-5xl mx-auto text-center">
-        <h1 className="display-font text-5xl md:text-7xl mb-6 leading-tight">
+        <h1 className="headline-font text-5xl md:text-7xl mb-6 leading-tight">
           <span style={{color: 'var(--ink)'}}>See the Story,</span>
           <br />
           <span style={{color: 'var(--sage)'}}>Not the Spin</span>
@@ -93,7 +93,7 @@ export default function Hero() {
             <Button
               type="submit"
               disabled={!url.trim() || processUrlMutation.isPending}
-              className="btn-sage h-14 px-8 rounded-2xl font-semibold focus-ring"
+              className="btn-blush h-14 px-8 font-semibold focus-ring"
             >
               {processUrlMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -105,11 +105,11 @@ export default function Hero() {
         </form>
 
         <div className="flex flex-wrap justify-center gap-3 text-sm mb-4" style={{color: 'var(--gray-600)'}}>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mint">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
             Bias-aware
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mint">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
             Balanced summaries
           </div>
@@ -117,19 +117,19 @@ export default function Hero() {
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--accent-blue)'}}></div>
             Multiple perspectives
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mint">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
             Key quotes & sources
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-sky">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-blush">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--accent-red)'}}></div>
             Sentiment & common ground
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mint">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
             Works on any site
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mint">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
             Auto-deletes after 24h
           </div>

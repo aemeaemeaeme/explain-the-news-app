@@ -59,22 +59,25 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   return (
     <article className="bg-white rounded-3xl card-shadow p-8 md:p-12 max-w-4xl mx-auto">
       {/* Meta row */}
-      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 mb-4">
-        <span>{article.meta.byline || 'Unknown'}</span>
-        <span>•</span>
-        <span>{article.meta.domain}</span>
-        <span>•</span>
-        <span className="flex items-center gap-1">
-          <Clock className="h-4 w-4" />
-          {article.reading_time_minutes} min read
-        </span>
-        <span>•</span>
-        <span>Tone: {article.tone}</span>
+      <div className="flex flex-wrap items-center gap-2 text-sm mb-4">
+        <div className="chip-peach px-2 py-1 rounded">
+          <span>{article.meta.byline || 'Unknown'}</span>
+        </div>
+        <div className="chip-peach px-2 py-1 rounded">
+          <span>{article.meta.domain}</span>
+        </div>
+        <div className="chip-peach px-2 py-1 rounded flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          <span>{article.reading_time_minutes} min read</span>
+        </div>
+        <div className="chip-peach px-2 py-1 rounded text-xs font-medium">
+          Tone: {article.tone}
+        </div>
       </div>
       
       {/* Title */}
       <div className="mb-6">
-        <h1 className="article-title display-font text-3xl md:text-4xl mb-4 leading-tight brand-bold">
+        <h1 className="article-title headline-font text-3xl md:text-4xl mb-4 leading-tight">
           {article.meta.title}
         </h1>
       </div>

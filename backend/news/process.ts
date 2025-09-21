@@ -132,13 +132,17 @@ function getSourceMix(domain: string, title: string): string {
 // ---------------- Extraction ----------------
 async function extractTextFromUrl(url: string): Promise<{ text: string; title: string; confidence: string; status: string }> {
   try {
-    // Use the new fetch service
+    // Use the new extraction service
     const extractionResult = await (await import('./fetch')).fetchArticle({ url });
     
+    // Map the new response format
+    const confidence = extractionResult.status === "ok" ? 
+      (extractionResult.text.length > 1500 ? "high" : "medium") : "low";
+    
     return {
-      text: extractionResult.content,
+      text: extractionResult.text,
       title: extractionResult.title,
-      confidence: extractionResult.confidence,
+      confidence,
       status: extractionResult.status
     };
   } catch (error) {

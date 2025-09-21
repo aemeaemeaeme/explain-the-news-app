@@ -5,15 +5,14 @@ interface FetchArticleRequest {
 }
 
 interface FetchArticleResponse {
-  title: string;
-  byline: string;
-  domain: string;
-  content: string;
-  publishedAt: string;
   status: "ok" | "limited";
-  confidence: "high" | "medium" | "low";
-  charCount: number;
-  extractionStep: number;
+  title: string;
+  byline: string | null;
+  content: string;
+  text: string;
+  site: string;
+  estReadMin: number;
+  reason?: string;
 }
 
 const USER_AGENTS = [
@@ -42,7 +41,7 @@ async function fetchWithRetries(url: string, retries = 2): Promise<string> {
           'Cache-Control': 'no-cache',
           'Accept-Encoding': 'gzip, deflate',
         },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!response.ok) {
@@ -54,8 +53,7 @@ async function fetchWithRetries(url: string, retries = 2): Promise<string> {
       console.log(`Attempt ${i + 1} failed for ${url}:`, error);
       
       if (i < retries) {
-        // Jittered backoff: 400-700ms
-        const backoff = 400 + Math.random() * 300;
+        const backoff = 500 + Math.random() * 1000;
         await sleep(backoff);
       } else {
         throw error;
@@ -68,50 +66,44 @@ async function fetchWithRetries(url: string, retries = 2): Promise<string> {
 function extractMetadata(html: string, url: string) {
   const domain = new URL(url).hostname.replace(/^www\./, '');
   
-  // Title extraction
-  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  // Title extraction - prioritize article title over page title
   const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i);
-  const title = (ogTitleMatch?.[1] || titleMatch?.[1] || 'Untitled Article').trim();
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
   
-  // Byline extraction
+  let title = '';
+  if (ogTitleMatch) title = ogTitleMatch[1];
+  else if (h1Match) title = h1Match[1];
+  else if (titleMatch) title = titleMatch[1];
+  else title = 'Untitled Article';
+  
+  title = title.trim().replace(/\s+/g, ' ');
+  
+  // Byline extraction - more comprehensive
   const bylinePatterns = [
     /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i,
     /<span[^>]*class="[^"]*author[^"]*"[^>]*>([^<]+)<\/span>/i,
     /<p[^>]*class="[^"]*byline[^"]*"[^>]*>([^<]+)<\/p>/i,
-    /By ([A-Z][a-z]+ [A-Z][a-z]+)/i
+    /<div[^>]*class="[^"]*byline[^"]*"[^>]*>.*?<span[^>]*>([^<]+)<\/span>/i,
+    /By\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
+    /<address[^>]*>.*?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+).*?<\/address>/i
   ];
   
-  let byline = '';
+  let byline = null;
   for (const pattern of bylinePatterns) {
     const match = html.match(pattern);
-    if (match) {
-      byline = match[1].trim();
-      break;
+    if (match && match[1]) {
+      byline = match[1].trim().replace(/^By\s+/i, '').replace(/\s+/g, ' ');
+      if (byline.length > 3 && byline.length < 100) break;
     }
   }
   
-  // Published date
-  const datePatterns = [
-    /<meta[^>]*property=["']article:published_time["'][^>]*content=["']([^"']+)["']/i,
-    /<time[^>]*datetime=["']([^"']+)["']/i,
-    /<meta[^>]*name=["']date["'][^>]*content=["']([^"']+)["']/i
-  ];
-  
-  let publishedAt = '';
-  for (const pattern of datePatterns) {
-    const match = html.match(pattern);
-    if (match) {
-      publishedAt = match[1].trim();
-      break;
-    }
-  }
-  
-  return { title, byline, domain, publishedAt };
+  return { title, byline, domain };
 }
 
-function simpleReadability(html: string): string {
-  // Remove scripts, styles, nav, header, footer, aside
-  let content = html
+function simpleReadability(html: string): { content: string; textContent: string } {
+  // Remove unwanted elements
+  let cleaned = html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<nav[\s\S]*?<\/nav>/gi, '')
@@ -119,53 +111,68 @@ function simpleReadability(html: string): string {
     .replace(/<footer[\s\S]*?<\/footer>/gi, '')
     .replace(/<aside[\s\S]*?<\/aside>/gi, '')
     .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<div[^>]*class="[^"]*ad[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
-    .replace(/<div[^>]*class="[^"]*subscribe[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+    .replace(/<div[^>]*class="[^"]*(?:ad|advertisement|promo|social|share)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
+    .replace(/<div[^>]*class="[^"]*(?:subscribe|newsletter)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
 
-  // Extract main content areas
+  // Try to find main content area
   const contentSelectors = [
-    'article',
-    '[role="main"]',
-    'main',
-    '.article-content',
-    '.story-body',
-    '.entry-content',
-    '#article-body'
+    /<article[^>]*>([\s\S]*?)<\/article>/i,
+    /<div[^>]*class="[^"]*(?:article-content|story-body|entry-content|post-content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<main[^>]*>([\s\S]*?)<\/main>/i,
+    /<div[^>]*id="[^"]*(?:article|story|content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i
   ];
 
+  let content = cleaned;
   for (const selector of contentSelectors) {
-    if (selector.startsWith('.') || selector.startsWith('#')) {
-      const className = selector.substring(1);
-      const regex = new RegExp(`<[^>]*(?:class|id)="[^"]*${className}[^"]*"[^>]*>([\\s\\S]*?)<\/[^>]+>`, 'i');
-      const match = content.match(regex);
-      if (match && match[1].length > 300) {
-        content = match[1];
-        break;
-      }
+    const match = cleaned.match(selector);
+    if (match && match[1] && match[1].length > 500) {
+      content = match[1];
+      break;
     }
   }
 
-  // Extract paragraphs
+  // Extract paragraphs and meaningful text
   const paragraphs = content.match(/<p[^>]*>([^<]+(?:<[^>]+>[^<]*<\/[^>]+>[^<]*)*)<\/p>/gi) || [];
-  const paragraphText = paragraphs
+  const cleanParagraphs = paragraphs
     .map(p => p.replace(/<[^>]+>/g, ' ').trim())
-    .filter(p => p.length > 20)
-    .join(' ');
+    .filter(p => p.length > 30)
+    .join('\n\n');
 
-  if (paragraphText.length > 300) {
-    return paragraphText;
+  // If paragraphs are good, use them; otherwise strip all HTML
+  let textContent;
+  if (cleanParagraphs.length > 300) {
+    textContent = cleanParagraphs;
+  } else {
+    textContent = content
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
-  // Fallback: all text content
-  return content
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return { 
+    content: content, 
+    textContent: textContent
+  };
 }
 
-function findAmpUrl(html: string): string | null {
+function findAmpUrl(html: string, originalUrl: string): string | null {
+  // Look for AMP link
   const ampMatch = html.match(/<link[^>]*rel=["']amphtml["'][^>]*href=["']([^"']+)["']/i);
-  return ampMatch ? ampMatch[1] : null;
+  if (ampMatch) {
+    const ampUrl = ampMatch[1];
+    return ampUrl.startsWith('http') ? ampUrl : new URL(ampUrl, originalUrl).href;
+  }
+  
+  // Try common AMP patterns
+  const url = new URL(originalUrl);
+  const ampVariants = [
+    `${url.protocol}//${url.host}${url.pathname}/amp`,
+    `${url.protocol}//${url.host}${url.pathname}?amp=1`,
+    `${url.protocol}//${url.host}${url.pathname}/amp.html`,
+    `${url.protocol}//${url.host}/amp${url.pathname}`
+  ];
+  
+  return ampVariants[0]; // Return first variant to try
 }
 
 function extractJsonLd(html: string): string {
@@ -178,112 +185,110 @@ function extractJsonLd(html: string): string {
       const jsonText = match.replace(/<script[^>]*>/, '').replace(/<\/script>/, '');
       const data = JSON.parse(jsonText);
       
-      if (data['@type'] === 'NewsArticle' || data['@type'] === 'Article') {
-        if (data.articleBody) {
-          return data.articleBody;
-        }
-        if (data.text) {
-          return data.text;
-        }
-        if (Array.isArray(data.paragraph)) {
-          return data.paragraph.join(' ');
+      // Handle both single objects and arrays
+      const items = Array.isArray(data) ? data : [data];
+      
+      for (const item of items) {
+        if (item['@type'] === 'NewsArticle' || item['@type'] === 'Article') {
+          if (item.articleBody && typeof item.articleBody === 'string') {
+            return item.articleBody;
+          }
+          if (item.text && typeof item.text === 'string') {
+            return item.text;
+          }
+          if (Array.isArray(item.paragraph)) {
+            return item.paragraph.join('\n\n');
+          }
         }
       }
     } catch (e) {
-      // Continue to next match
+      console.log('JSON-LD parse error:', e);
     }
   }
   
   return '';
 }
 
-function extractOpenGraphMeta(html: string): string {
+function extractOpenGraphContent(html: string): string {
   const ogDescription = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i);
-  const twitterDescription = html.match(/<meta[^>]*name=["']twitter:description["'][^>]*content=["']([^"']+)["']/i);
+  const description = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
   
   let content = '';
-  if (ogDescription) content += ogDescription[1] + ' ';
-  if (twitterDescription) content += twitterDescription[1] + ' ';
-  
-  // Add some visible paragraph content
-  const visiblePs = html.match(/<p[^>]*>([^<]+)<\/p>/gi) || [];
-  const textContent = visiblePs
-    .slice(0, 5)
-    .map(p => p.replace(/<[^>]+>/g, '').trim())
-    .join(' ');
-  
-  return (content + textContent).trim();
-}
-
-async function tryCommonAmpPatterns(originalUrl: string): Promise<string | null> {
-  const url = new URL(originalUrl);
-  const ampVariants = [
-    `${url.protocol}//${url.host}${url.pathname}/amp`,
-    `${url.protocol}//${url.host}${url.pathname}?amp`,
-    `${url.protocol}//${url.host}${url.pathname}?output=amp`,
-    `${url.protocol}//${url.host}${url.pathname}/amp.html`,
-    `${url.protocol}//${url.host}${url.pathname}?outputType=amp`
-  ];
-
-  for (const ampUrl of ampVariants) {
-    try {
-      const html = await fetchWithRetries(ampUrl, 1);
-      const content = simpleReadability(html);
-      if (content.length >= 900) {
-        return content;
-      }
-    } catch (e) {
-      // Continue to next variant
-    }
+  if (ogDescription && ogDescription[1]) content += ogDescription[1] + '\n\n';
+  if (description && description[1] && description[1] !== ogDescription?.[1]) {
+    content += description[1] + '\n\n';
   }
   
+  // Add some paragraph content as fallback
+  const paragraphs = html.match(/<p[^>]*>([^<]+)<\/p>/gi) || [];
+  const firstParagraphs = paragraphs
+    .slice(0, 3)
+    .map(p => p.replace(/<[^>]+>/g, '').trim())
+    .filter(p => p.length > 20)
+    .join('\n\n');
+  
+  content += firstParagraphs;
+  return content.trim();
+}
+
+async function tryAmpUrl(ampUrl: string): Promise<{ content: string; textContent: string } | null> {
+  try {
+    const html = await fetchWithRetries(ampUrl, 1);
+    const result = simpleReadability(html);
+    
+    if (result.textContent.length >= 800) {
+      return result;
+    }
+  } catch (e) {
+    console.log('AMP fetch failed:', e);
+  }
   return null;
 }
 
 function getDomainAdapter(domain: string) {
-  const adapters: Record<string, (html: string) => string> = {
+  const adapters: Record<string, (html: string) => { content: string; textContent: string }> = {
     'cnn.com': (html) => {
-      // Try data-editable selectors
-      const editableMatches = html.match(/<[^>]*data-editable=["']text["'][^>]*>([^<]+)<\/[^>]+>/gi);
-      if (editableMatches) {
-        const content = editableMatches.map(m => m.replace(/<[^>]+>/g, '').trim()).join(' ');
-        if (content.length > 500) return content;
+      // Try CNN-specific selectors
+      const patterns = [
+        /<div[^>]*class="[^"]*zn-body__paragraph[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+        /<div[^>]*data-editable=["']text["'][^>]*>([\s\S]*?)<\/div>/gi
+      ];
+      
+      for (const pattern of patterns) {
+        const matches = html.match(pattern);
+        if (matches && matches.length > 3) {
+          const content = matches.join('\n');
+          const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          if (textContent.length > 500) {
+            return { content, textContent };
+          }
+        }
       }
       return simpleReadability(html);
     },
     
     'reuters.com': (html) => {
-      // Try data-testid paragraphs
-      const testIdMatches = html.match(/<p[^>]*data-testid=["']paragraph-\d+["'][^>]*>([^<]+)<\/p>/gi);
-      if (testIdMatches) {
-        const content = testIdMatches.map(m => m.replace(/<[^>]+>/g, '').trim()).join(' ');
-        if (content.length > 500) return content;
+      const paragraphPattern = /<p[^>]*data-testid=["']paragraph-\d+["'][^>]*>([\s\S]*?)<\/p>/gi;
+      const matches = html.match(paragraphPattern);
+      if (matches && matches.length > 2) {
+        const content = matches.join('\n');
+        const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (textContent.length > 500) {
+          return { content, textContent };
+        }
       }
       return simpleReadability(html);
     },
     
     'apnews.com': (html) => {
-      // Try article[data-component="Story"] p
-      const storyMatch = html.match(/<article[^>]*data-component=["']Story["'][^>]*>([\s\S]*?)<\/article>/i);
-      if (storyMatch) {
-        const paragraphs = storyMatch[1].match(/<p[^>]*>([^<]+)<\/p>/gi) || [];
-        const content = paragraphs.map(p => p.replace(/<[^>]+>/g, '').trim()).join(' ');
-        if (content.length > 500) return content;
-      }
-      return simpleReadability(html);
-    },
-    
-    'politico.com': (html) => {
-      return simpleReadability(html);
-    },
-    
-    'foxnews.com': (html) => {
-      // Try article-body selector
-      const bodyMatch = html.match(/<div[^>]*class="[^"]*article-body[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
-      if (bodyMatch) {
-        const paragraphs = bodyMatch[1].match(/<p[^>]*>([^<]+)<\/p>/gi) || [];
-        const content = paragraphs.map(p => p.replace(/<[^>]+>/g, '').trim()).join(' ');
-        if (content.length > 500) return content;
+      const storyPattern = /<div[^>]*class="[^"]*RichTextStoryBody[^"]*"[^>]*>([\s\S]*?)<\/div>/i;
+      const match = html.match(storyPattern);
+      if (match && match[1]) {
+        const content = match[1];
+        const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (textContent.length > 500) {
+          return { content, textContent };
+        }
       }
       return simpleReadability(html);
     }
@@ -293,9 +298,9 @@ function getDomainAdapter(domain: string) {
 }
 
 export const fetchArticle = api<FetchArticleRequest, FetchArticleResponse>(
-  { expose: true, method: "POST", path: "/fetch-article" },
+  { expose: true, method: "POST", path: "/extract" },
   async ({ url }) => {
-    console.log(`Starting extraction for: ${url}`);
+    console.log(`🔍 Starting extraction for: ${url}`);
     
     try {
       new URL(url);
@@ -304,107 +309,108 @@ export const fetchArticle = api<FetchArticleRequest, FetchArticleResponse>(
     }
     
     const domain = new URL(url).hostname.replace(/^www\./, '');
-    let html: string;
-    let content = '';
-    let extractionStep = 0;
-    let confidence: "high" | "medium" | "low" = "low";
     
     try {
-      // Fetch the main HTML
-      html = await fetchWithRetries(url);
-      
-      // Extract metadata
+      // Step 1: Try direct fetch with domain adapter
+      console.log('📥 Step 1: Direct fetch with domain adapter');
+      const html = await fetchWithRetries(url);
       const metadata = extractMetadata(html, url);
       
-      // Step 1: Direct HTML + Readability
-      extractionStep = 1;
       const adapter = getDomainAdapter(domain);
-      content = adapter(html);
+      let result = adapter(html);
       
-      if (content.length >= 1200) {
-        confidence = "high";
-        console.log(`✓ Step 1 success: ${content.length} chars`);
-      } else {
-        // Step 2: AMP auto-discover
-        extractionStep = 2;
-        const ampUrl = findAmpUrl(html);
-        
-        if (ampUrl) {
-          try {
-            const ampHtml = await fetchWithRetries(ampUrl);
-            content = simpleReadability(ampHtml);
-            if (content.length >= 900) {
-              confidence = "high";
-              console.log(`✓ Step 2 AMP success: ${content.length} chars`);
-            }
-          } catch (e) {
-            console.log(`✗ AMP fetch failed: ${e}`);
-          }
-        }
-        
-        if (content.length < 900) {
-          // Try common AMP patterns
-          const ampContent = await tryCommonAmpPatterns(url);
-          if (ampContent && ampContent.length >= 900) {
-            content = ampContent;
-            confidence = "high";
-            console.log(`✓ Step 2 AMP patterns success: ${content.length} chars`);
-          }
-        }
-        
-        if (content.length < 900) {
-          // Step 3: JSON-LD Article
-          extractionStep = 3;
-          const jsonLdContent = extractJsonLd(html);
-          if (jsonLdContent.length >= 900) {
-            content = jsonLdContent;
-            confidence = "medium";
-            console.log(`✓ Step 3 JSON-LD success: ${content.length} chars`);
-          } else if (content.length < 700) {
-            // Step 4: Open Graph / Twitter meta fallback
-            extractionStep = 4;
-            const metaContent = extractOpenGraphMeta(html);
-            if (metaContent.length >= 700) {
-              content = metaContent;
-              confidence = "low";
-              console.log(`✓ Step 4 meta fallback: ${content.length} chars`);
-            }
-          }
+      if (result.textContent.length >= 1200) {
+        console.log(`✅ Step 1 success: ${result.textContent.length} chars`);
+        return {
+          status: "ok",
+          title: metadata.title,
+          byline: metadata.byline,
+          content: result.content,
+          text: result.textContent,
+          site: metadata.domain,
+          estReadMin: Math.max(1, Math.round(result.textContent.split(/\s+/).length / 225))
+        };
+      }
+      
+      // Step 2: Try AMP
+      console.log('📱 Step 2: Trying AMP');
+      const ampUrl = findAmpUrl(html, url);
+      if (ampUrl) {
+        const ampResult = await tryAmpUrl(ampUrl);
+        if (ampResult && ampResult.textContent.length >= 900) {
+          console.log(`✅ Step 2 AMP success: ${ampResult.textContent.length} chars`);
+          return {
+            status: "ok",
+            title: metadata.title,
+            byline: metadata.byline,
+            content: ampResult.content,
+            text: ampResult.textContent,
+            site: metadata.domain,
+            estReadMin: Math.max(1, Math.round(ampResult.textContent.split(/\s+/).length / 225))
+          };
         }
       }
       
-      // Determine final status
-      const status: "ok" | "limited" = content.length >= 700 ? "ok" : "limited";
-      const charCount = content.length;
+      // Step 3: Try JSON-LD
+      console.log('📋 Step 3: Trying JSON-LD');
+      const jsonLdContent = extractJsonLd(html);
+      if (jsonLdContent.length >= 900) {
+        console.log(`✅ Step 3 JSON-LD success: ${jsonLdContent.length} chars`);
+        return {
+          status: "ok",
+          title: metadata.title,
+          byline: metadata.byline,
+          content: jsonLdContent,
+          text: jsonLdContent,
+          site: metadata.domain,
+          estReadMin: Math.max(1, Math.round(jsonLdContent.split(/\s+/).length / 225))
+        };
+      }
       
-      console.log(`Final result: ${status}, ${charCount} chars, step ${extractionStep}, confidence ${confidence}`);
+      // Step 4: Try Open Graph fallback
+      console.log('🔄 Step 4: Open Graph fallback');
+      const ogContent = extractOpenGraphContent(html);
+      if (ogContent.length >= 500) {
+        console.log(`⚠️ Step 4 limited success: ${ogContent.length} chars`);
+        return {
+          status: "limited",
+          title: metadata.title,
+          byline: metadata.byline,
+          content: ogContent,
+          text: ogContent,
+          site: metadata.domain,
+          estReadMin: Math.max(1, Math.round(ogContent.split(/\s+/).length / 225)),
+          reason: "limited_content"
+        };
+      }
       
+      // If we reach here, we have very limited content
+      console.log(`❌ All extraction methods failed, using metadata only`);
+      const fallbackContent = `Content extraction limited for ${metadata.domain}. ${metadata.title}`;
       return {
+        status: "limited",
         title: metadata.title,
-        byline: metadata.byline || "Unknown",
-        domain: metadata.domain,
-        content: content || `Limited content extracted from ${metadata.domain}. This may be due to paywall protection or anti-bot measures.`,
-        publishedAt: metadata.publishedAt || "unknown",
-        status,
-        confidence,
-        charCount,
-        extractionStep
+        byline: metadata.byline,
+        content: fallbackContent,
+        text: fallbackContent,
+        site: metadata.domain,
+        estReadMin: 1,
+        reason: "site_protection"
       };
       
     } catch (error) {
-      console.error(`Extraction failed for ${url}:`, error);
+      console.error(`💥 Extraction failed for ${url}:`, error);
       const domain = new URL(url).hostname.replace(/^www\./, '');
       
       return {
-        title: "Content Extraction Failed",
-        byline: "Unknown",
-        domain,
-        content: `Failed to extract content from ${domain}. This site may have strong anti-bot protection or technical barriers.`,
-        publishedAt: "unknown",
         status: "limited",
-        confidence: "low",
-        charCount: 0,
-        extractionStep: 0
+        title: "Content Extraction Failed",
+        byline: null,
+        content: `Failed to extract content from ${domain}. This site may have strong anti-bot protection.`,
+        text: `Failed to extract content from ${domain}. This site may have strong anti-bot protection.`,
+        site: domain,
+        estReadMin: 1,
+        reason: "extraction_failed"
       };
     }
   }

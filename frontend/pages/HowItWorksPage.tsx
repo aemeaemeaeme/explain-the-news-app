@@ -53,10 +53,10 @@ export default function HowItWorksPage() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Hero Section */}
         <div className="text-center mb-16">
-          <h1 className="display-font text-4xl sm:text-5xl lg:text-6xl mb-6">
-            <span style={{color: 'var(--navy)'}}>How</span>{' '}
-            <span style={{color: 'var(--olive)'}}>Unspin</span>{' '}
-            <span style={{color: 'var(--navy)'}}>Works</span>
+          <h1 className="headline-font text-4xl sm:text-5xl lg:text-6xl mb-6">
+            <span style={{color: 'var(--ink)'}}>How</span>{' '}
+            <span style={{color: 'var(--sage)'}}>Unspin</span>{' '}
+            <span style={{color: 'var(--ink)'}}>Works</span>
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             From article URL to comprehensive analysis in seconds. Here's how we help you see the story, not the spin.
@@ -91,7 +91,7 @@ export default function HowItWorksPage() {
 
         {/* FAQ Section */}
         <div className="mb-16">
-          <h2 className="display-font text-3xl text-center mb-12" style={{color: 'var(--navy)'}}>
+          <h2 className="headline-font text-3xl text-center mb-12" style={{color: 'var(--ink)'}}>
             Frequently Asked Questions
           </h2>
           <div className="space-y-4">
@@ -134,7 +134,7 @@ export default function HowItWorksPage() {
             </p>
             <a
               href="/"
-              className="btn-olive px-8 py-3 rounded-lg font-semibold inline-block transition-all hover:transform hover:translate-y-[-2px]"
+              className="btn-blush px-8 py-3 font-semibold inline-block transition-all hover:transform hover:translate-y-[-2px]"
             >
               Start analyzing
             </a>

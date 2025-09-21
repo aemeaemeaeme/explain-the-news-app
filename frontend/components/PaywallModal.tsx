@@ -61,7 +61,7 @@ export default function PaywallModal({ isOpen, onClose, resetTime }: PaywallModa
 
           <div className="pt-4 space-y-3">
             <Button 
-              className="w-full btn-sage py-3 rounded-lg font-semibold"
+              className="w-full btn-blush py-3 font-semibold"
               onClick={() => {
                 // TODO: Implement upgrade flow
                 console.log('Upgrade to Pro clicked');

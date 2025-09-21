@@ -135,9 +135,9 @@ export default function ExamplesPage() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Hero Section */}
         <div className="text-center mb-16">
-          <h1 className="display-font text-4xl sm:text-5xl lg:text-6xl mb-6">
-            <span style={{color: 'var(--navy)'}}>Example</span>{' '}
-            <span style={{color: 'var(--olive)'}}>Analyses</span>
+          <h1 className="headline-font text-4xl sm:text-5xl lg:text-6xl mb-6">
+            <span style={{color: 'var(--ink)'}}>Example</span>{' '}
+            <span style={{color: 'var(--sage)'}}>Analyses</span>
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             See how Unspin breaks down real news articles with balanced perspectives, bias detection, and clear summaries.
@@ -253,7 +253,7 @@ export default function ExamplesPage() {
             </p>
             <a
               href="/"
-              className="btn-olive px-8 py-3 rounded-lg font-semibold inline-block transition-all hover:transform hover:translate-y-[-2px]"
+              className="btn-blush px-8 py-3 font-semibold inline-block transition-all hover:transform hover:translate-y-[-2px]"
             >
               Analyze an article
             </a>

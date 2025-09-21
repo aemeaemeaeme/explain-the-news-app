@@ -35,10 +35,10 @@ export default function Features() {
   ];
 
   return (
-    <section id="how-it-works" className="py-20 px-4 bg-white">
+    <section id="everything-you-need" className="py-20 px-4" style={{backgroundColor: 'var(--mist)'}}>
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="display-font text-4xl md:text-5xl mb-6" style={{color: 'var(--navy)'}}>
+          <h2 className="headline-font text-4xl md:text-5xl mb-6" style={{color: 'var(--ink)'}}>
             Everything You Need
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
@@ -54,14 +54,14 @@ export default function Features() {
             >
               <div 
                 className="w-12 h-12 rounded-xl flex items-center justify-center mb-6"
-                style={{backgroundColor: index % 2 === 0 ? 'var(--sage)' : 'var(--sky)'}}
+                style={{backgroundColor: index % 3 === 0 ? 'var(--sky)' : index % 3 === 1 ? 'var(--blush)' : 'var(--mist)'}}
               >
                 <feature.icon 
                   className="h-6 w-6" 
-                  style={{color: 'var(--olive)'}} 
+                  style={{color: 'var(--sage)'}} 
                 />
               </div>
-              <h3 className="text-xl font-semibold mb-3" style={{color: 'var(--navy)'}}>
+              <h3 className="text-xl font-semibold mb-3" style={{color: 'var(--ink)'}}>
                 {feature.title}
               </h3>
               <p className="text-gray-600 leading-relaxed">
@@ -69,6 +69,21 @@ export default function Features() {
               </p>
             </div>
           ))}
+        </div>
+
+        {/* CTA */}
+        <div className="text-center mt-16">
+          <a
+            href="#"
+            className="btn-blush px-8 py-4 font-semibold inline-block transition-all hover:transform hover:translate-y-[-2px]"
+            onClick={(e) => {
+              e.preventDefault();
+              document.querySelector('input[type="url"]')?.scrollIntoView({ behavior: 'smooth' });
+              (document.querySelector('input[type="url"]') as HTMLInputElement)?.focus();
+            }}
+          >
+            Try it free
+          </a>
         </div>
       </div>
     </section>

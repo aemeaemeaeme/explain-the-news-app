@@ -24,16 +24,15 @@ export default function TrustStrip() {
       <section className="py-12 px-4 bg-white">
         <div className="max-w-6xl mx-auto text-center">
           <p className="text-sm text-gray-600 mb-6 uppercase tracking-wide">
-            Supporting readers at top institutions
+            Supported at top institutions
           </p>
           <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6">
             {institutions.map((institution) => (
               <div
                 key={institution.name}
-                className="flex items-center justify-center h-12 px-4 rounded-lg card-shadow"
-                style={{backgroundColor: 'var(--mint)', color: 'var(--ink)'}}
+                className="flex items-center justify-center h-12 px-4 rounded-lg card-shadow chip-mist"
               >
-                <span className="text-sm font-medium">
+                <span className="text-sm font-medium" style={{color: 'var(--ink)'}}>
                   {institution.logo}
                 </span>
               </div>
