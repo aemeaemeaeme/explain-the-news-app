@@ -125,6 +125,9 @@ export namespace news {
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_news_contact_contact>
         }
 
+        /**
+         * —— Public API ——
+         */
         public async explain(params: RequestType<typeof api_news_explain_unified_explain>): Promise<ResponseType<typeof api_news_explain_unified_explain>> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/explain`, {method: "POST", body: JSON.stringify(params)})
