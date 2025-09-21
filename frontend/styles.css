@@ -164,3 +164,32 @@ body {
 .text-sage{ color: var(--sage) !important; }
 .bg-mist{ background-color: var(--mist) !important; }
 .border-gray-300-var{ border-color: var(--gray-300) !important; }
+
+/* --- Perspectives pills --- */
+.pill {
+  background: #E7F0FF;              /* soft blue chip */
+  border-radius: 40px;               /* large rounding */
+  padding: 24px 28px;
+  box-shadow: 0 1px 2px rgba(44,46,72,.04);
+}
+
+/* let text wrap nicely in narrow widths */
+.pill, .pill * {
+  min-width: 0;
+  overflow-wrap: anywhere;           /* modern wrap */
+  word-break: normal;
+  hyphens: auto;
+  line-height: 1.45;
+}
+
+/* headings inside */
+.pill h3 {
+  margin: 0 0 10px 0;
+  color: var(--ink);
+  font-family: 'Inter Tight','Inter',system-ui,sans-serif;
+  font-weight: 800;
+}
+
+/* list spacing */
+.pill ul { margin: 10px 0 0; padding-left: 1.25rem; }
+.pill li { margin: 10px 0; color: var(--gray-700); }
