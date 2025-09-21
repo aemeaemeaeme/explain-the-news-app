@@ -39,8 +39,9 @@
   --shadow-sm: 0 1px 3px rgba(44, 46, 72, .1), 0 1px 2px rgba(44, 46, 72, .06);
   --shadow-md: 0 4px 6px rgba(44, 46, 72, .10), 0 2px 4px rgba(44, 46, 72, .06);
 
-  /* Grid bg */
-  --grid-color: rgba(89, 193, 116, 0.05);
+  /* Grid */
+  --grid-size: 24px;
+  --grid-color: rgba(89, 193, 116, 0.05); /* tweak strength here */
 }
 
 /* ------------------------------------------------------------------ */
@@ -54,9 +55,26 @@ body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji", sans-serif;
   color: var(--gray-700);
-  /* moved grid off body so it isn’t hidden by section backgrounds */
-  background-color: var(--mist);
+  background-color: var(--mist); /* solid base, grid is drawn by ::before */
 }
+
+/* Always-on subtle grid overlay (sits under all content) */
+body::before{
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+  /* Uncomment for a touch more contrast: */
+  /* mix-blend-mode: multiply; */
+}
+
+/* Ensure app content sits above the grid overlay */
+#root, body > div#root { position: relative; z-index: 1; }
 
 /* Typography helpers */
 .headline-font { font-family: 'Inter Tight','Inter',system-ui,sans-serif; font-weight: 900; letter-spacing: -0.02em; }
@@ -161,7 +179,7 @@ body {
 .bg-mist{ background-color: var(--mist) !important; }
 .border-gray-300-var{ border-color: var(--gray-300) !important; }
 
-/* --- Perspectives pill (now a rounded rectangle, wraps text) --- */
+/* --- Perspectives pill (rounded rectangle, wraps text) --- */
 .pill {
   background: #E7F0FF;
   border-radius: 24px;
@@ -185,17 +203,8 @@ body {
 .pill li { margin: 10px 0; color: var(--gray-700); }
 
 /* ------------------------------------------------------------------ */
-/* Grid background utility (apply to page wrapper)                     */
+/* (Optional) Grid intensity helpers                                   */
 /* ------------------------------------------------------------------ */
-.grid-bg{
-  background-color: var(--mist);
-  background-image:
-    linear-gradient(var(--grid-color) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-  background-size: 24px 24px;
-  background-attachment: fixed;
-}
-
-/* Intensity variants (optional) */
-.grid-bg--soft   { --grid-color: rgba(89, 193, 116, 0.035); }
-.grid-bg--medium { --grid-color: rgba(89, 193, 116, 0.07); }
+.grid-soft   { --grid-color: rgba(89, 193, 116, 0.035); }
+.grid-medium { --grid-color: rgba(89, 193, 116, 0.07); }
+.grid-strong { --grid-color: rgba(89, 193, 116, 0.1); }
