@@ -135,9 +135,12 @@ export const explain = api<ExplainRequest, UnifiedAnalysisResponse>(
       // Log extraction results
       console.log(`📊 Extraction: ${extractionResult.status} | Method: ${extractionResult.extractionMethod} | Confidence: ${extractionResult.confidence} | Length: ${analysisInput.length} chars`);
 
-      // Analyze with LLM
-      console.log("🤖 Starting LLM analysis");
+      // Analyze with LLM (will try OpenAI first, then Gemini)
+      console.log("🤖 Starting LLM analysis with dual provider fallback");
       const analysis = await analyzeWithLLM(analysisInput, url, analysisTitle, isLimited);
+      
+      // Log which provider was actually used
+      console.log(`🎯 Analysis completed using: ${analysis.meta.provider} (${analysis.meta.model})`);
 
       // Update metadata
       analysis.meta.elapsed_ms = Date.now() - startTime;

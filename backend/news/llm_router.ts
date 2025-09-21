@@ -1,6 +1,14 @@
 import { secret } from "encore.dev/config";
 import OpenAI from "openai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Dynamic import for Gemini to handle potential package issues
+let GoogleGenerativeAI: any = null;
+try {
+  const geminiModule = require("@google/generative-ai");
+  GoogleGenerativeAI = geminiModule.GoogleGenerativeAI;
+} catch (error) {
+  console.warn("Google Generative AI package not available:", error);
+}
 
 // Types for unified JSON response
 export interface UnifiedAnalysisResponse {
@@ -200,15 +208,28 @@ async function callOpenAI(prompt: string, articleData: any): Promise<UnifiedAnal
 
 // Gemini provider
 async function callGemini(prompt: string, articleData: any): Promise<UnifiedAnalysisResponse | null> {
+  // Check if Gemini package is available
+  if (!GoogleGenerativeAI) {
+    throw new Error("Google Generative AI package not available");
+  }
+
   const apiKey = geminiApiKey();
   if (!apiKey) throw new Error("Gemini API key not configured");
 
-  const client = new GoogleGenerativeAI(apiKey);
-  const model = client.getGenerativeModel({ model: PROVIDER_CONFIG.gemini.model });
-  const startTime = Date.now();
-
   try {
+    const client = new GoogleGenerativeAI(apiKey);
+    const model = client.getGenerativeModel({ 
+      model: PROVIDER_CONFIG.gemini.model,
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 2500,
+      }
+    });
+    
+    const startTime = Date.now();
     const fullPrompt = `${prompt}\n\nArticle data: ${JSON.stringify(articleData)}`;
+    
+    console.log(`🤖 Calling Gemini with model: ${PROVIDER_CONFIG.gemini.model}`);
     
     const response = await Promise.race([
       model.generateContent(fullPrompt),
@@ -217,14 +238,30 @@ async function callGemini(prompt: string, articleData: any): Promise<UnifiedAnal
       )
     ]);
 
-    const content = (response as any).response?.text();
-    if (!content) throw new Error("No content in Gemini response");
+    const result = (response as any).response;
+    if (!result) throw new Error("No response from Gemini");
 
-    const parsed = JSON.parse(content);
+    const content = result.text();
+    if (!content) throw new Error("No text content in Gemini response");
+
+    console.log(`📝 Gemini response length: ${content.length} characters`);
+
+    // Clean up the response - sometimes Gemini adds markdown formatting
+    let cleanContent = content.trim();
+    if (cleanContent.startsWith('```json')) {
+      cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    }
+    if (cleanContent.startsWith('```')) {
+      cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    const parsed = JSON.parse(cleanContent);
     const validated = validateResponse(parsed, "gemini");
     
     if (validated) {
       validated.meta.elapsed_ms = Date.now() - startTime;
+      validated.meta.model = PROVIDER_CONFIG.gemini.model;
+      console.log(`✅ Gemini analysis completed in ${validated.meta.elapsed_ms}ms`);
       return validated;
     }
     
