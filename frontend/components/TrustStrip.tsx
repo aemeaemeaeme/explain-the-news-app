@@ -8,12 +8,15 @@ export default function TrustStrip() {
     { name: "Stanford University", logo: "Stanford" }
   ];
 
+  // Real avatar images for social proof
   const avatars = [
-    { name: "Sarah M", initials: "SM" },
-    { name: "David L", initials: "DL" },
-    { name: "Maria G", initials: "MG" },
-    { name: "John K", initials: "JK" },
-    { name: "Lisa W", initials: "LW" },
+    { name: "Sarah M", src: "https://images.unsplash.com/photo-1494790108755-2616b612b48c?w=100&h=100&fit=crop&crop=face" },
+    { name: "David L", src: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face" },
+    { name: "Maria G", src: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop&crop=face" },
+    { name: "John K", src: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face" },
+    { name: "Lisa W", src: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face" },
+    { name: "Alex R", src: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face" },
+    { name: "Emma T", src: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face" },
   ];
 
   return (
@@ -27,8 +30,8 @@ export default function TrustStrip() {
             {institutions.map((institution) => (
               <div
                 key={institution.name}
-                className="flex items-center justify-center h-10 px-4 rounded-lg border"
-                style={{backgroundColor: 'var(--sage)', borderColor: 'var(--sage-dark)', color: 'var(--navy)'}}
+                className="flex items-center justify-center h-12 px-4 rounded-lg card-shadow"
+                style={{backgroundColor: 'var(--mint)', color: 'var(--ink)'}}
               >
                 <span className="text-sm font-medium">
                   {institution.logo}
@@ -47,19 +50,26 @@ export default function TrustStrip() {
             <div className="flex items-center justify-center space-x-4 mb-4">
               <div className="flex -space-x-2">
                 {avatars.map((user, index) => (
-                  <div
+                  <img
                     key={index}
-                    className="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center"
-                    style={{backgroundColor: 'var(--olive)'}}
-                  >
-                    <span className="text-white text-xs font-semibold">
-                      {user.initials}
-                    </span>
-                  </div>
+                    src={user.src}
+                    alt={user.name}
+                    className="w-10 h-10 rounded-full border-2 border-white object-cover"
+                    onError={(e) => {
+                      // Fallback to colored circle with initials
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const fallback = document.createElement('div');
+                      fallback.className = 'w-10 h-10 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-semibold';
+                      fallback.style.backgroundColor = 'var(--sage)';
+                      fallback.textContent = user.name.split(' ').map(n => n[0]).join('');
+                      target.parentNode?.insertBefore(fallback, target);
+                    }}
+                  />
                 ))}
               </div>
             </div>
-            <h3 className="text-xl font-semibold mb-2" style={{color: 'var(--navy)'}}>
+            <h3 className="text-xl font-semibold mb-2" style={{color: 'var(--ink)'}}>
               Trusted by 100,000+ readers
             </h3>
             <p className="text-gray-600">

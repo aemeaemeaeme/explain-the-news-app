@@ -2,22 +2,22 @@
 
 :root {
   /* Brand Colors */
-  --navy: #0F172A;
-  --olive: #8FA780;
-  --sage: #E8F0E6;
-  --sky: #E7F0F9;
+  --ink: #0B1320;
+  --sage: #8DAA82;
+  --sky: #DDEAF7;
+  --mint: #E8F1E6;
+  --blush: #F7E7EA;
+  --gray-600: #5E6A75;
+  --gray-300: #D6DADF;
+  
+  /* Legacy support */
+  --navy: var(--ink);
+  --olive: var(--sage);
   --accent-red: #EF4444;
   --accent-blue: #3B82F6;
   
-  /* Extended Palette */
-  --olive-dark: #7A8A6F;
-  --olive-light: #B5C5A8;
-  --navy-light: #334155;
-  --sage-dark: #D1E2CE;
-  --sky-dark: #D1E4F5;
-  
   /* Grid background */
-  --grid-color: rgba(143, 167, 128, 0.08);
+  --grid-color: rgba(141, 170, 130, 0.06);
 }
 
 /* Grid background pattern */
@@ -37,8 +37,25 @@ body {
   letter-spacing: -0.02em;
 }
 
+.brand-bold {
+  font-weight: 800;
+}
+
 .body-font {
   font-family: 'Inter', system-ui, sans-serif;
+  color: var(--gray-600);
+}
+
+/* Title styling */
+.article-title {
+  background: linear-gradient(135deg, var(--ink) 0%, var(--sage) 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-decoration: underline;
+  text-decoration-color: var(--sage);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 8px;
 }
 
 /* Smooth scrolling */
@@ -49,23 +66,39 @@ html {
 /* Focus styles */
 .focus-ring:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(143, 167, 128, 0.3);
+  box-shadow: 0 0 0 3px rgba(141, 170, 130, 0.3);
 }
 
 /* Button variants */
-.btn-olive {
-  background-color: var(--olive);
+.btn-sage {
+  background-color: var(--sage);
   color: white;
   transition: all 0.2s ease;
 }
 
-.btn-olive:hover {
-  background-color: var(--olive-dark);
+.btn-sage:hover {
+  background-color: #7A8A6F;
   transform: translateY(-1px);
 }
 
-.btn-olive:active {
+.btn-sage:active {
   transform: translateY(0);
+}
+
+/* Chip variants */
+.chip-mint {
+  background-color: var(--mint);
+  color: var(--ink);
+}
+
+.chip-sky {
+  background-color: var(--sky);
+  color: var(--ink);
+}
+
+.chip-blush {
+  background-color: var(--blush);
+  color: var(--ink);
 }
 
 /* Animations */
@@ -87,8 +120,8 @@ html {
 /* Card shadows */
 .card-shadow {
   box-shadow: 
-    0 1px 3px rgba(15, 23, 42, 0.1),
-    0 1px 2px rgba(15, 23, 42, 0.06);
+    0 1px 3px rgba(11, 19, 32, 0.1),
+    0 1px 2px rgba(11, 19, 32, 0.06);
 }
 
 .card-shadow-hover {
@@ -97,8 +130,8 @@ html {
 
 .card-shadow-hover:hover {
   box-shadow: 
-    0 4px 6px rgba(15, 23, 42, 0.1),
-    0 2px 4px rgba(15, 23, 42, 0.06);
+    0 4px 6px rgba(11, 19, 32, 0.1),
+    0 2px 4px rgba(11, 19, 32, 0.06);
 }
 
 /* Sticky header animation */
@@ -114,9 +147,9 @@ html {
 
 /* Tag pills */
 .tag-fact { background-color: var(--accent-blue); color: white; }
-.tag-timeline { background-color: var(--olive); color: white; }
+.tag-timeline { background-color: var(--sage); color: white; }
 .tag-stakeholders { background-color: var(--accent-red); color: white; }
-.tag-numbers { background-color: var(--navy); color: white; }
+.tag-numbers { background-color: var(--ink); color: white; }
 
 /* Loading spinner */
 @keyframes spin {
@@ -133,7 +166,7 @@ html {
 .tooltip {
   position: relative;
   cursor: help;
-  border-bottom: 1px dotted var(--olive);
+  border-bottom: 1px dotted var(--sage);
 }
 
 .tooltip:hover::after {
@@ -142,7 +175,7 @@ html {
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--navy);
+  background: var(--ink);
   color: white;
   padding: 8px 12px;
   border-radius: 6px;
@@ -159,6 +192,6 @@ html {
   left: 50%;
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-top-color: var(--navy);
+  border-top-color: var(--ink);
   z-index: 1000;
 }

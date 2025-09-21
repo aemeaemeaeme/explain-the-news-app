@@ -5,10 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import PaywallModal from './PaywallModal';
 import backend from '~backend/client';
 
 export default function Hero() {
   const [url, setUrl] = useState('');
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [resetTime, setResetTime] = useState<number>();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -17,6 +20,9 @@ export default function Hero() {
     onSuccess: (response) => {
       if (response.success && response.id) {
         navigate(`/article/${response.id}`);
+      } else if (response.rateLimited) {
+        setResetTime(response.resetTime);
+        setShowPaywall(true);
       } else {
         console.warn('Process response:', response);
         toast({
@@ -56,12 +62,12 @@ export default function Hero() {
     <section className="relative py-24 px-4 bg-[#F7F7F7]">
       <div className="relative max-w-5xl mx-auto text-center">
         <h1 className="display-font text-5xl md:text-7xl mb-6 leading-tight">
-          <span style={{color: 'var(--navy)'}}>See the Story,</span>
+          <span style={{color: 'var(--ink)'}}>See the Story,</span>
           <br />
-          <span style={{color: 'var(--olive)'}}>Not the Spin</span>
+          <span style={{color: 'var(--sage)'}}>Not the Spin</span>
         </h1>
 
-        <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
+        <p className="text-xl mb-12 max-w-3xl mx-auto leading-relaxed" style={{color: 'var(--gray-600)'}}>
           Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key points and sentiment so you see the whole picture.
         </p>
 
@@ -80,14 +86,14 @@ export default function Hero() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 disabled={processUrlMutation.isPending}
-                className="w-full h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 bg-white/95 focus:outline-none focus:ring-4 focus:ring-[var(--olive)]/30 focus:border-[var(--olive)] transition-all pointer-events-auto"
+                className="w-full h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 bg-white/95 focus:outline-none focus:ring-4 focus:ring-[var(--sage)]/30 focus:border-[var(--sage)] transition-all pointer-events-auto"
                 style={{zIndex: 10, position: 'relative'}}
               />
             </div>
             <Button
               type="submit"
               disabled={!url.trim() || processUrlMutation.isPending}
-              className="btn-olive h-14 px-8 rounded-2xl font-semibold focus-ring"
+              className="btn-sage h-14 px-8 rounded-2xl font-semibold focus-ring"
             >
               {processUrlMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -98,29 +104,43 @@ export default function Hero() {
           </div>
         </form>
 
-        <div className="flex flex-wrap justify-center gap-3 text-sm text-gray-600 mb-4">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{backgroundColor: 'var(--sage)', color: 'var(--navy)'}}>
-            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--olive)'}}></div>
-            Bias-aware, balanced summaries
+        <div className="flex flex-wrap justify-center gap-3 text-sm mb-4" style={{color: 'var(--gray-600)'}}>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mint">
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
+            Bias-aware
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{backgroundColor: 'var(--sky)', color: 'var(--navy)'}}>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mint">
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
+            Balanced summaries
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-sky">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--accent-blue)'}}></div>
             Multiple perspectives
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{backgroundColor: 'var(--sage)', color: 'var(--navy)'}}>
-            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--olive)'}}></div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mint">
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
             Key quotes & sources
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{backgroundColor: 'var(--sky)', color: 'var(--navy)'}}>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-sky">
             <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--accent-red)'}}></div>
             Sentiment & common ground
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{backgroundColor: 'var(--sage)', color: 'var(--navy)'}}>
-            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--olive)'}}></div>
-            Works on any site • Auto-deletes after 24h • No signup
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mint">
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
+            Works on any site
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mint">
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
+            Auto-deletes after 24h
           </div>
         </div>
       </div>
+      
+      <PaywallModal 
+        isOpen={showPaywall} 
+        onClose={() => setShowPaywall(false)}
+        resetTime={resetTime}
+      />
     </section>
   );
 }

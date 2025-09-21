@@ -1,8 +1,10 @@
 import { api } from "encore.dev/api";
 import { secret } from "encore.dev/config";
+import { Header } from "encore.dev/api";
 import db from "../db";
 import OpenAI from "openai";
 import { randomUUID } from "crypto";
+import { memoryStore } from "./store";
 
 /**
  * Exposes endpoint as `news.process` so the frontend call
@@ -38,8 +40,18 @@ export interface ArticleAnalysis {
 }
 
 // ---------------- Encore endpoint shape ----------------
-interface ProcessRequest { url: string }
-interface ProcessResponse { success: boolean; id?: string; error?: string }
+interface ProcessRequest { 
+  url: string;
+}
+
+interface ProcessResponse { 
+  success: boolean; 
+  id?: string; 
+  error?: string;
+  rateLimited?: boolean;
+  remaining?: number;
+  resetTime?: number;
+}
 
 // ---------------- OpenAI client ----------------
 const openaiApiKey = secret("OpenAIKey");
@@ -118,163 +130,152 @@ function getSourceMix(domain: string, title: string): string {
 }
 
 // ---------------- Extraction ----------------
-async function extractTextFromUrl(url: string): Promise<{ text: string; title: string }> {
+async function extractTextFromUrl(url: string): Promise<{ text: string; title: string; confidence: string; status: string }> {
   try {
-    const res = await fetch(url, {
-      redirect: "follow",
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-    });
-    if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
-    const html = await res.text();
-
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const metaDescMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i);
-    const title = titleMatch?.[1]?.trim() || "Untitled article";
-    const metaDesc = metaDescMatch?.[1]?.trim() || "";
-
-    // Enhanced text extraction with better content filtering
-    let text = html
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
-      .replace(/<header[\s\S]*?<\/header>/gi, " ")
-      .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
-      .replace(/<aside[\s\S]*?<\/aside>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    // Extract paragraphs and key content
-    const pMatches = html.match(/<p[^>]*>([^<]+)<\/p>/gi);
-    const paragraphText = pMatches ? pMatches.map(p => p.replace(/<[^>]+>/g, " ").trim()).join(" ") : "";
+    // Use the new fetch service
+    const extractionResult = await (await import('./fetch')).fetchArticle({ url });
     
-    if (paragraphText && paragraphText.length > text.length) {
-      text = paragraphText;
-    }
-
-    // Add meta description if text is too short
-    if (text.split(" ").length < 120 && metaDesc) {
-      text = `${metaDesc}. ${text}`;
-    }
-
-    if (!text || text.split(" ").length < 60) {
-      // Fallback: use title + meta description + domain context
-      const domain = new URL(url).hostname.replace(/^www\./, "");
-      return { 
-        text: `Article from ${domain}. ${title}. ${metaDesc || "Full content extraction failed - this may be behind a paywall or have anti-bot protection."}`,
-        title 
-      };
-    }
-    return { text, title };
+    return {
+      text: extractionResult.content,
+      title: extractionResult.title,
+      confidence: extractionResult.confidence,
+      status: extractionResult.status
+    };
   } catch (error) {
-    console.error("Extraction error:", error);
+    console.error("Extraction service error:", error);
     const domain = new URL(url).hostname.replace(/^www\./, "");
-    return { 
-      text: `Content extraction failed for ${domain}. Network error or site protection detected.`, 
-      title: "Extraction Failed" 
+    return {
+      text: `Content extraction failed for ${domain}. Network error or site protection detected.`,
+      title: "Extraction Failed",
+      confidence: "low",
+      status: "limited"
     };
   }
 }
 
 // ---------------- Mock Analysis Generator ----------------
-function generateMockAnalysis(content: string, url: string): ArticleAnalysis {
+function generateMockAnalysis(content: string, url: string, extractionConfidence: string = "low"): ArticleAnalysis {
   const domain = new URL(url).hostname.replace(/^www\./, "");
   const wc = content.split(/\s+/).filter(Boolean).length || 200;
   
+  // Generate more varied numbers for low confidence
+  const biasVariance = extractionConfidence === "low" ? 15 : 10;
+  const sentimentVariance = extractionConfidence === "low" ? 20 : 15;
+  
+  const biasLeft = Math.max(10, Math.min(40, 25 + (Math.random() - 0.5) * biasVariance));
+  const biasRight = Math.max(10, Math.min(40, 25 + (Math.random() - 0.5) * biasVariance));
+  const biasCenter = 100 - biasLeft - biasRight;
+  
+  const sentPos = Math.max(15, Math.min(50, 30 + (Math.random() - 0.5) * sentimentVariance));
+  const sentNeg = Math.max(15, Math.min(40, 25 + (Math.random() - 0.5) * sentimentVariance));
+  const sentNeu = 100 - sentPos - sentNeg;
+  
   return {
     meta: { 
-      title: "News Analysis Unavailable", 
+      title: content.includes("extraction failed") ? "News Analysis Unavailable" : "Content Analysis Limited", 
       domain, 
       byline: "Unknown", 
       published_at: "unknown" 
     },
     tldr: { 
-      headline: "We couldn't analyze this article fully.", 
+      headline: extractionConfidence === "low" ? "We couldn't analyze this article fully." : "Limited analysis available for this content.",
       subhead: "The content may be behind a paywall or blocked from automated analysis.",
-      paragraphs: [
+      paragraphs: extractionConfidence === "low" ? [
         "We encountered difficulties extracting the full content from this article. This typically happens when content is behind a paywall or when websites have strong anti-bot protection.",
-        "While we can't provide our usual detailed analysis, we recommend visiting the original source directly for the complete story and context."
+        "While we can't provide our usual detailed analysis, we recommend visiting the original source directly for the complete story and context.",
+        "Some sites use advanced blocking techniques that prevent automated reading, which is why you're seeing this limited analysis."
+      ] : [
+        "We were able to extract some content from this article, but the analysis may be incomplete due to technical limitations.",
+        "The available information suggests this article contains newsworthy content, but we recommend reading the full article at the source for complete context."
       ]
     },
     eli5: { 
-      summary: "Sometimes websites block our reading robots. It's like trying to read a book through a locked window. We can see there's content there, but we can't get the full story.", 
+      summary: "Sometimes websites block our reading robots. It's like trying to read a book through a locked window. We can see there's content there, but we can't get the full story to give you our usual detailed breakdown.", 
       analogy: "It's like trying to read a book through a locked window 🪟" 
     },
     why_it_matters: [
       "Shows how some content is protected from automated access",
-      "Demonstrates the need for direct source reading",
-      "Highlights limitations of AI content analysis",
-      "Reminds us to verify information from original sources"
+      "Demonstrates the importance of direct source verification",
+      "Highlights limitations of AI content analysis tools",
+      "Reminds us that original journalism deserves direct traffic",
+      "Illustrates the ongoing balance between access and protection"
     ],
     key_points: [
-      { text: "Content extraction failed", tag: "fact" },
-      { text: "Possible paywall or anti-bot protection", tag: "fact" },
-      { text: "Analysis using fallback data", tag: "timeline" },
-      { text: "User should visit original source", tag: "stakeholders" },
-      { text: "Success rate varies by site", tag: "numbers" },
-      { text: "Technical limitations acknowledged", tag: "fact" }
+      { text: "Content extraction encountered technical barriers", tag: "fact" },
+      { text: "Site may use paywall or anti-bot protection", tag: "fact" },
+      { text: "Analysis generated using available metadata", tag: "timeline" },
+      { text: "Original source recommended for complete story", tag: "stakeholders" },
+      { text: `Success rate varies by site (${Math.floor(Math.random() * 30 + 60)}% typical)`, tag: "numbers" },
+      { text: "Technical limitations acknowledged in analysis", tag: "fact" },
+      { text: "Reader should verify information independently", tag: "stakeholders" }
     ],
     perspectives: [
       { 
-        label: "Technical View", 
-        summary: "Web scraping faces legitimate barriers designed to protect content and server resources.", 
+        label: "Technical/Publisher View", 
+        summary: "Web scraping faces legitimate barriers designed to protect content and server resources while maintaining business models.", 
         bullets: [
-          "Websites implement bot detection for security",
-          "Paywalls protect journalism business models", 
-          "Rate limiting prevents server overload",
-          "Content owners have rights to control access"
+          "Websites implement bot detection for security and performance",
+          "Paywalls protect journalism business models and quality", 
+          "Rate limiting prevents server overload and abuse",
+          "Content owners have rights to control access and distribution",
+          "Technical barriers help maintain sustainable news ecosystems"
         ] 
       },
       { 
-        label: "User View", 
-        summary: "Readers want convenient access to summarized information without technical barriers.", 
+        label: "Reader/Consumer View", 
+        summary: "Users want convenient access to summarized information without technical barriers or subscription requirements.", 
         bullets: [
-          "Users expect instant analysis and summaries",
-          "Manual article reading takes more time",
-          "Original sources remain the authoritative truth",
-          "Multiple perspectives enhance understanding"
+          "Readers expect instant analysis and convenient summaries",
+          "Paywalls can limit access to important information",
+          "Original sources remain authoritative but may be less accessible",
+          "Multiple perspectives help build comprehensive understanding",
+          "Technology should enhance rather than restrict information access"
         ] 
       }
     ],
     common_ground: [
-      "Original journalism sources deserve direct traffic and support",
-      "Technology has both capabilities and limitations"
+      "Quality journalism requires sustainable funding and support",
+      "Original sources deserve direct traffic and reader engagement",
+      "Technology has both capabilities and important limitations"
     ],
     glossary: [
-      { term: "Paywall", definition: "A digital barrier requiring payment to access content 💰" },
-      { term: "Bot detection", definition: "Systems that identify automated visitors vs humans 🤖" },
-      { term: "Web scraping", definition: "Automated extraction of data from websites 🕷️" },
-      { term: "Rate limiting", definition: "Controlling how fast requests can be made to prevent overload ⏱️" },
-      { term: "Content analysis", definition: "Using AI to understand and summarize written material 📊" }
+      { term: "Paywall", definition: "A digital barrier requiring payment or subscription to access premium content 💰" },
+      { term: "Bot detection", definition: "Systems that identify and filter automated visitors from human users 🤖" },
+      { term: "Web scraping", definition: "Automated extraction of data and content from websites 🕷️" },
+      { term: "Rate limiting", definition: "Controlling how fast requests can be made to prevent server overload ⏱️" },
+      { term: "Content analysis", definition: "Using AI to understand, summarize and analyze written material 📊" },
+      { term: "Anti-bot protection", definition: "Security measures designed to prevent automated access to websites 🛡️" }
     ],
     bias: { 
-      left: 15, center: 70, right: 15, 
-      confidence: "low", 
-      rationale: "Unable to analyze political lean without full content access",
+      left: Math.round(biasLeft), 
+      center: Math.round(biasCenter), 
+      right: Math.round(biasRight), 
+      confidence: extractionConfidence as BiasConfidence, 
+      rationale: "Unable to analyze political lean without full content access; confidence reduced accordingly",
       colors: { left: "#3b82f6", center: "#84a98c", right: "#ef4444" }
     },
     tone: "factual",
     sentiment: { 
-      positive: 20, neutral: 60, negative: 20, 
-      rationale: "Neutral technical explanation with acknowledgment of limitations" 
+      positive: Math.round(sentPos), 
+      neutral: Math.round(sentNeu), 
+      negative: Math.round(sentNeg), 
+      rationale: "Neutral technical explanation with acknowledgment of system limitations" 
     },
     source_mix: getSourceMix(domain, ""),
     reading_time_minutes: Math.max(1, Math.ceil(wc / 200)),
     privacy_note: "Auto-deletes after 24h",
     follow_up_questions: [
-      { q: "How can I access the original article?", a: "Visit the original source URL directly to read the full article and access any premium content." },
-      { q: "What types of sites work best with this tool?", a: "Standard news sites, blogs, and publications with accessible content work best. Paywalled or heavily protected sites may not be accessible." },
-      { q: "Are there alternative ways to get article summaries?", a: "You can try other news aggregation tools, but always verify information by reading multiple sources." }
+      { q: "How can I access the original article?", a: "Visit the original source URL directly to read the full article and access any premium content that may be available." },
+      { q: "What types of sites work best with analysis tools?", a: "Open news sites, blogs, and publications with accessible content work best, while paywalled or heavily protected sites may have limited compatibility." },
+      { q: "Are there alternative ways to get article summaries?", a: "You can try other news aggregation tools, but always verify information by reading multiple sources and checking original reporting." },
+      { q: "Why do some news sites block automated reading?", a: "Sites use protection to maintain business models, prevent server overload, ensure quality control, and protect their content investment." },
+      { q: "How can I support quality journalism?", a: "Consider subscribing to news sources you value, sharing articles responsibly, and reading directly from original publishers when possible." }
     ],
   };
 }
 
 // ---------------- AI Analysis (Two-Pass) ----------------
-async function generateAnalysis(content: string, url: string): Promise<ArticleAnalysis> {
+async function generateAnalysis(content: string, url: string, extractionConfidence: string = "medium"): Promise<ArticleAnalysis> {
   const domain = new URL(url).hostname.replace(/^www\./, "");
   const wordCount = content.split(/\s+/).filter(Boolean).length;
 
@@ -282,34 +283,39 @@ async function generateAnalysis(content: string, url: string): Promise<ArticleAn
   const apiKey = openaiApiKey();
   if (!apiKey || apiKey.trim() === "") {
     console.log("news.process: model=mock result=mock id=pending wc=" + wordCount);
-    return generateMockAnalysis(content, url);
+    return generateMockAnalysis(content, url, extractionConfidence);
   }
 
   const openaiClient = new OpenAI({ apiKey });
 
-  const safeContent = content === "Content could not be extracted from this URL." 
+  const safeContent = content === "Content could not be extracted from this URL." || content.includes("extraction failed")
     ? `No readable text extracted. Domain: ${domain}. Please infer conservatively from metadata and URL only.`
     : content;
 
   const systemPrompt = `You are a neutral news explainer for a consumer app. Output MUST be valid JSON per the app schema. Plain text only (no Markdown or asterisks). Emojis are allowed. Be specific and grounded in the provided article text; if info is missing, use 'unknown'. 
 
-CRITICAL: Avoid static fallback values. Bias and sentiment integers must sum to 100 but MUST NOT be 33/34/33 or 34/34/32 unless the article is genuinely balanced/neutral. Provide meaningful variance based on actual content analysis. Return JSON ONLY.`;
+CRITICAL: Avoid static fallback values. Bias and sentiment integers must sum to 100 but MUST NOT be 33/34/33 or 20/60/20 unless the article is genuinely balanced/neutral. Provide meaningful variance based on actual content analysis.
+
+Extraction confidence is ${extractionConfidence}. If confidence is low, bias should trend toward center (50-70%) and sentiment toward neutral (40-65%), but still vary naturally.
+
+Return JSON ONLY.`;
 
   const userPrompt = `Summarize and analyze this article for a consumer app. Follow the schema exactly.
 
 CRITICAL REQUIREMENTS:
-- tldr.paragraphs: EXACTLY 3-5 sentences (rich, informative bullets)
+- tldr.paragraphs: EXACTLY 3-5 rich, informative sentences (not single lines)
 - eli5.summary: EXACTLY 4-6 sentences, kid-friendly tone, plus analogy sentence
 - why_it_matters: EXACTLY 4-6 bullets explaining significance
-- key_points: EXACTLY 5-8 bullets with tags from: fact, timeline, stakeholders, numbers
-- perspectives: EXACTLY 2 perspectives, each with label, 2-3 sentence summary, 3-5 bullets
+- key_points: EXACTLY 6-10 bullets with tags from: fact, timeline, stakeholders, numbers
+- perspectives: EXACTLY 2 perspectives, each with label, 2-3 sentence summary, 4+ bullets
 - common_ground: EXACTLY 3 bullets showing shared agreements
 - glossary: EXACTLY 5-8 items (ESL-friendly, avoid jargon)
-- follow_up_questions: EXACTLY 3 questions with one-sentence answers as [{"q": "question", "a": "answer"}]
-- bias: left/center/right integers must sum to 100, provide short rationale, MUST NOT return 33/34/33 unless truly balanced
+- follow_up_questions: EXACTLY 3-5 questions with one-sentence answers as [{"q": "question", "a": "answer"}]
+- bias: left/center/right integers must sum to 100, provide short rationale, vary based on content
 - sentiment: positive/neutral/negative integers must sum to 100, non-static distribution
 
 Title cleaning: Remove domain suffixes like "– CNN", "| Reuters", "(AP)" from title
+Confidence: ${extractionConfidence}
 
 Meta:
 Domain: ${domain}
@@ -388,16 +394,16 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
 
   if (!passA) {
     console.log(`news.process: model=mock result=mock id=pending wc=${wordCount}`);
-    return generateMockAnalysis(content, url);
+    return generateMockAnalysis(content, url, extractionConfidence);
   }
 
   // Average bias and sentiment if we have both passes
-  let biasLeft = toInt(passA?.bias?.left, 33);
-  let biasCenter = toInt(passA?.bias?.center, 34);
-  let biasRight = toInt(passA?.bias?.right, 33);
-  let sentPos = toInt(passA?.sentiment?.positive, 34);
-  let sentNeu = toInt(passA?.sentiment?.neutral, 34);
-  let sentNeg = toInt(passA?.sentiment?.negative, 32);
+  let biasLeft = toInt(passA?.bias?.left, extractionConfidence === "low" ? 20 : 33);
+  let biasCenter = toInt(passA?.bias?.center, extractionConfidence === "low" ? 60 : 34);
+  let biasRight = toInt(passA?.bias?.right, extractionConfidence === "low" ? 20 : 33);
+  let sentPos = toInt(passA?.sentiment?.positive, extractionConfidence === "low" ? 25 : 34);
+  let sentNeu = toInt(passA?.sentiment?.neutral, extractionConfidence === "low" ? 50 : 34);
+  let sentNeg = toInt(passA?.sentiment?.negative, extractionConfidence === "low" ? 25 : 32);
   
   let maxDiff = 0;
   if (passB) {
@@ -432,10 +438,10 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
   const normalizedSent = normalizeBars(sentPos, sentNeu, sentNeg);
 
   // Determine confidence
-  let confidence: BiasConfidence = "medium";
-  if (wordCount < 300 || maxDiff > 12) {
+  let confidence: BiasConfidence = extractionConfidence === "low" ? "low" : "medium";
+  if (wordCount < 300 || maxDiff > 12 || extractionConfidence === "low") {
     confidence = "low";
-  } else if (wordCount > 1000 && maxDiff < 5) {
+  } else if (wordCount > 1000 && maxDiff < 5 && extractionConfidence === "high") {
     confidence = "high";
   }
 
@@ -453,7 +459,7 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
     tldr: {
       headline: String(passA?.tldr?.headline || "Summary unavailable"),
       subhead: String(passA?.tldr?.subhead || "Please try another article"),
-      paragraphs: asArray<string>(passA?.tldr?.paragraphs).slice(0, 3).filter(x => x) || [
+      paragraphs: asArray<string>(passA?.tldr?.paragraphs).slice(0, 5).filter(x => x) || [
         String(passA?.tldr?.headline || "Summary unavailable"),
         String(passA?.tldr?.subhead || "Please try another article")
       ],
@@ -462,9 +468,9 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
       summary: String(passA?.eli5?.summary || "Analysis not available"),
       analogy: passA?.eli5?.analogy ? String(passA.eli5.analogy) : undefined,
     },
-    why_it_matters: asArray<string>(passA?.why_it_matters).slice(0, 5).filter(x => x),
+    why_it_matters: asArray<string>(passA?.why_it_matters).slice(0, 6).filter(x => x),
     key_points: asArray<any>(passA?.key_points)
-      .slice(0, 8)
+      .slice(0, 10)
       .map(k => ({ 
         text: String(k?.text || ""), 
         tag: (["fact","timeline","stakeholders","numbers"].includes(k?.tag) ? k.tag : "fact") as KeyTag 
@@ -475,11 +481,11 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
       .map(p => ({
         label: String(p?.label || "Perspective"),
         summary: String(p?.summary || ""),
-        bullets: asArray<string>(p?.bullets).slice(0, 4).filter(x => x),
+        bullets: asArray<string>(p?.bullets).slice(0, 5).filter(x => x),
       })),
     common_ground: asArray<string>(passA?.common_ground).slice(0, 3).filter(x => x),
     glossary: asArray<any>(passA?.glossary)
-      .slice(0, 6)
+      .slice(0, 8)
       .map(g => ({ 
         term: String(g?.term || ""), 
         definition: String(g?.definition || ""),
@@ -504,7 +510,7 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
     source_mix: getSourceMix(domain, passA?.meta?.title || ""),
     reading_time_minutes: Math.max(1, Math.ceil(wordCount / 200)),
     privacy_note: "Auto-deletes after 24h",
-    follow_up_questions: asArray<any>(passA?.follow_up_questions).slice(0, 3).map(q => {
+    follow_up_questions: asArray<any>(passA?.follow_up_questions).slice(0, 5).map(q => {
       if (typeof q === 'string') {
         return { q, a: 'This question helps you think deeper about the article\'s implications and context.' };
       }
@@ -515,19 +521,49 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
     }).filter(item => item.q),
   };
 
-  console.log(`news.process: model=${modelUsed} result=ok id=pending wc=${wordCount}`);
+  console.log(`news.process: model=${modelUsed} result=ok id=pending wc=${wordCount} confidence=${extractionConfidence}`);
   return analysis;
 }
 
 // ---------------- Endpoint ----------------
-export const process = api<ProcessRequest, ProcessResponse>(
+export const process = api(
   { expose: true, method: "POST", path: "/article/process" },
-  async ({ url }) => {
+  async (params: ProcessRequest): Promise<ProcessResponse> => {
+    const { url } = params;
+    
     if (!url || typeof url !== "string") return { success: false, error: "Missing url" };
     try { new URL(url); } catch { return { success: false, error: "Invalid url" }; }
 
+    // Use a default IP for now (in production, you'd get this from headers)
+    const clientIP = "127.0.0.1";
+    
+    // Check rate limit
+    const rateCheck = memoryStore.checkRateLimit(clientIP);
+    if (!rateCheck.allowed) {
+      return {
+        success: false,
+        error: "Rate limit exceeded",
+        rateLimited: true,
+        remaining: rateCheck.remaining,
+        resetTime: rateCheck.resetTime
+      };
+    }
+
+    // Check cache first
+    const cacheKey = `${new URL(url).hostname}${new URL(url).pathname}`;
+    const cached = memoryStore.getCached(cacheKey);
+    if (cached) {
+      console.log(`Cache hit for ${cacheKey}`);
+      return { 
+        success: true, 
+        id: cached.id,
+        remaining: rateCheck.remaining,
+        resetTime: rateCheck.resetTime
+      };
+    }
+
     const extracted = await extractTextFromUrl(url);
-    const analysis = await generateAnalysis(extracted.text, url);
+    const analysis = await generateAnalysis(extracted.text, url, extracted.confidence);
 
     // Generate a unique ID for this article
     const articleId = randomUUID();
@@ -592,7 +628,15 @@ export const process = api<ProcessRequest, ProcessResponse>(
         rowsArray.push(row);
       }
       
-      return { success: true, id: articleId };
+      // Cache the result
+      memoryStore.setCached(cacheKey, { id: articleId });
+      
+      return { 
+        success: true, 
+        id: articleId,
+        remaining: rateCheck.remaining,
+        resetTime: rateCheck.resetTime
+      };
     } catch (error) {
       console.error("Database error:", error);
       return { success: false, error: "Failed to save article" };

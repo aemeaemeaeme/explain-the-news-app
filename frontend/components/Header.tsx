@@ -43,8 +43,8 @@ export default function Header() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
-            <BookOpen className="h-8 w-8" style={{color: 'var(--navy)'}} />
-            <span className="text-xl font-bold" style={{color: 'var(--navy)'}}>Unspin</span>
+            <BookOpen className="h-8 w-8" style={{color: 'var(--sage)'}} />
+            <span className="text-xl brand-bold" style={{color: 'var(--ink)'}}>Unspin</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -53,7 +53,7 @@ export default function Header() {
               <Link
                 key={item.name}
                 to={item.href}
-                className="text-gray-600 hover:text-[var(--navy)] transition-colors font-medium"
+                className="text-gray-600 hover:text-[var(--ink)] transition-colors font-medium"
               >
                 {item.name}
               </Link>
@@ -64,7 +64,7 @@ export default function Header() {
           <div className="hidden md:block">
             <Button
               onClick={() => navigate('/')}
-              className="btn-olive px-6 py-2 rounded-lg font-semibold focus-ring"
+              className="btn-sage px-6 py-2 rounded-lg font-semibold focus-ring"
             >
               Try it free
             </Button>
@@ -84,15 +84,15 @@ export default function Header() {
                   className="flex items-center space-x-2 pb-4 border-b"
                   onClick={() => setIsOpen(false)}
                 >
-                  <BookOpen className="h-6 w-6" style={{color: 'var(--navy)'}} />
-                  <span className="text-lg font-bold" style={{color: 'var(--navy)'}}>Unspin</span>
+                  <BookOpen className="h-6 w-6" style={{color: 'var(--sage)'}} />
+                  <span className="text-lg brand-bold" style={{color: 'var(--ink)'}}>Unspin</span>
                 </Link>
                 
                 {navigationItems.map((item) => (
                   <Link
                     key={item.name}
                     to={item.href}
-                    className="text-gray-600 hover:text-[var(--navy)] transition-colors py-2 font-medium"
+                    className="text-gray-600 hover:text-[var(--ink)] transition-colors py-2 font-medium"
                     onClick={() => setIsOpen(false)}
                   >
                     {item.name}
@@ -104,7 +104,7 @@ export default function Header() {
                     navigate('/');
                     setIsOpen(false);
                   }}
-                  className="btn-olive mt-4 w-full"
+                  className="btn-sage mt-4 w-full"
                 >
                   Try it free
                 </Button>

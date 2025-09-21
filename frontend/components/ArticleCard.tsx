@@ -69,14 +69,12 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           {article.reading_time_minutes} min read
         </span>
         <span>•</span>
-        <span className="px-2 py-1 rounded text-xs font-medium" style={{backgroundColor: 'var(--sage)', color: 'var(--navy)'}}>
-          {article.tone}
-        </span>
+        <span>Tone: {article.tone}</span>
       </div>
       
       {/* Title */}
       <div className="mb-6">
-        <h1 className="display-font text-3xl md:text-4xl mb-4 leading-tight" style={{color: 'var(--navy)'}}>
+        <h1 className="article-title display-font text-3xl md:text-4xl mb-4 leading-tight brand-bold">
           {article.meta.title}
         </h1>
       </div>
@@ -85,14 +83,14 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       <div className="flex justify-between items-center mb-8">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-[var(--navy)] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-[var(--ink)] transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to input
         </button>
         <button
           onClick={handleShare}
-          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-[var(--navy)] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-[var(--ink)] transition-colors"
         >
           <Share className="h-4 w-4" />
           Share
@@ -102,7 +100,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       <div className="space-y-10">
         {/* TL;DR */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--navy)'}}>TL;DR</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>TL;DR</h2>
           <div className="space-y-4">
             {article.tldr.paragraphs && article.tldr.paragraphs.length > 0 ? (
               article.tldr.paragraphs.map((paragraph, index) => (
@@ -119,7 +117,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* ELI5 */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--navy)'}}>Explain Like I'm 5</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Explain Like I'm 5</h2>
           <div className="space-y-4">
             <p className="text-gray-700 leading-relaxed">{article.eli5.summary}</p>
             {article.eli5.analogy && (
@@ -134,12 +132,12 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Why It Matters */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--navy)'}}>Why It Matters</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Why It Matters</h2>
           {article.why_it_matters.length > 0 ? (
             <ul className="space-y-3">
               {article.why_it_matters.map((point, index) => (
                 <li key={index} className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0" style={{backgroundColor: 'var(--olive)'}}></div>
+                  <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0" style={{backgroundColor: 'var(--sage)'}}></div>
                   <span className="text-gray-700">{point}</span>
                 </li>
               ))}
@@ -151,7 +149,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Key Points */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--navy)'}}>Key Points</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Key Points</h2>
           {article.key_points.length > 0 ? (
             <div className="grid gap-3">
               {article.key_points.map((point, index) => (
@@ -170,7 +168,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Bias Analysis */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--navy)'}}>Bias Analysis</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Bias Analysis</h2>
           <BiasBar 
             left={article.bias.left}
             center={article.bias.center}
@@ -186,7 +184,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Sentiment Analysis */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--navy)'}}>Sentiment</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Sentiment</h2>
           <SentimentBar 
             positive={article.sentiment.positive}
             neutral={article.sentiment.neutral}
@@ -197,18 +195,18 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Perspectives */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--navy)'}}>Different Perspectives</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Different Perspectives</h2>
           {article.perspectives.length >= 2 ? (
             <div className="grid md:grid-cols-2 gap-6">
               {article.perspectives.slice(0, 2).map((perspective, index) => (
                 <div key={index} className="p-6 rounded-xl" style={{backgroundColor: 'var(--sky)'}}>
-                  <h3 className="font-semibold mb-3" style={{color: 'var(--navy)'}}>{perspective.label}</h3>
+                  <h3 className="font-semibold mb-3" style={{color: 'var(--ink)'}}>{perspective.label}</h3>
                   {perspective.summary && <p className="text-gray-700 mb-3">{perspective.summary}</p>}
                   {perspective.bullets.length > 0 && (
                     <ul className="space-y-2">
                       {perspective.bullets.map((bullet, i) => (
                         <li key={i} className="flex items-start gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{backgroundColor: 'var(--navy)'}}></div>
+                          <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{backgroundColor: 'var(--ink)'}}></div>
                           <span className="text-gray-600 text-sm">{bullet}</span>
                         </li>
                       ))}
@@ -224,15 +222,15 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Common Ground */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2" style={{color: 'var(--navy)'}}>
-            <Handshake className="h-6 w-6" style={{color: 'var(--olive)'}} />
+          <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2" style={{color: 'var(--ink)'}}>
+            <Handshake className="h-6 w-6" style={{color: 'var(--sage)'}} />
             Common Ground
           </h2>
           {article.common_ground.length > 0 ? (
             <ul className="space-y-3">
               {article.common_ground.map((point, index) => (
                 <li key={index} className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0" style={{backgroundColor: 'var(--olive)'}}></div>
+                  <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0" style={{backgroundColor: 'var(--sage)'}}></div>
                   <span className="text-gray-700">{point}</span>
                 </li>
               ))}
@@ -244,12 +242,12 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Glossary */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--navy)'}}>Glossary</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Glossary</h2>
           {article.glossary.length > 0 ? (
             <div className="grid sm:grid-cols-2 gap-4">
               {article.glossary.map((item, index) => (
                 <div key={index} className="p-4 rounded-lg" style={{backgroundColor: 'var(--sage)'}}>
-                  <dt className="font-semibold" style={{color: 'var(--navy)'}}>{item.term}</dt>
+                  <dt className="font-semibold" style={{color: 'var(--ink)'}}>{item.term}</dt>
                   <dd className="text-gray-700 text-sm mt-1">{item.definition}</dd>
                 </div>
               ))}
@@ -261,7 +259,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Follow-up Questions */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--navy)'}}>Follow-up Questions</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Follow-up Questions</h2>
           <FollowUpQuestions questions={article.follow_up_questions} />
         </section>
       </div>
