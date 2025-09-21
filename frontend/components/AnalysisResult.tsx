@@ -310,6 +310,7 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
   </>
 )}
 
+
               
               {analysis.perspectives.center_view.length > 0 && (
                 <div>
