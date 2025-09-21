@@ -93,7 +93,7 @@ export default function SeeItInAction() {
         {/* Demo Article Card */}
         <div className="bg-white rounded-3xl card-shadow p-8 md:p-12 max-w-4xl mx-auto">
           {/* Meta row */}
-          <div className="flex flex-wrap items-center gap-2 text-sm mb-4">
+          <div className="flex flex-wrap items-center gap-2 text-sm mb-4 text-gray-700">
             <div className="flex items-center gap-1 chip-peach px-2 py-1 rounded">
               <User className="h-3 w-3" />
               <span>{demoAnalysis.meta.byline}</span>
