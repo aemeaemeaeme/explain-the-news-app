@@ -49,7 +49,6 @@ body {
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji", sans-serif;
   color: var(--gray-700);
   background-color: var(--mist);
-  /* faint grid like the reference */
   background-image:
     linear-gradient(var(--grid-color) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
@@ -72,13 +71,12 @@ body {
   text-underline-offset: 8px;
 }
 
-/* Focus ring (for any element you add .focus-ring to) */
+/* Focus ring */
 .focus-ring:focus{ outline: none; box-shadow: var(--ring); }
 
 /* ------------------------------------------------------------------ */
 /* Buttons                                                             */
 /* ------------------------------------------------------------------ */
-/* Primary – vivid green */
 .btn-sage{
   background-color: var(--sage);
   color: #fff;
@@ -89,7 +87,6 @@ body {
 .btn-sage:hover{ background-color:#4fb969; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .btn-sage:active{ transform: translateY(0); box-shadow: var(--shadow-sm); }
 
-/* Secondary – soft blush */
 .btn-blush{
   background-color: var(--blush);
   color: var(--ink);
@@ -100,10 +97,7 @@ body {
 .btn-blush:hover{ background-color:#F5D4DD; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .btn-blush:active{ transform: translateY(0); box-shadow: var(--shadow-sm); }
 
-/* Ghost link button (optional) */
-.btn-link{
-  background: transparent; border: none; color: var(--ink); padding: 0;
-}
+.btn-link{ background: transparent; border: none; color: var(--ink); padding: 0; }
 .btn-link:hover{ text-decoration: underline; text-decoration-color: var(--sage); }
 
 /* ------------------------------------------------------------------ */
@@ -143,7 +137,7 @@ body {
 .animate-spin{ animation: spin 1s linear infinite; }
 
 /* ------------------------------------------------------------------ */
-/* Tooltips (opt-in with .tooltip + data-tooltip)                      */
+/* Tooltips                                                            */
 /* ------------------------------------------------------------------ */
 .tooltip{ position: relative; cursor: help; border-bottom: 1px dotted var(--sage); }
 .tooltip:hover::after{
@@ -165,31 +159,25 @@ body {
 .bg-mist{ background-color: var(--mist) !important; }
 .border-gray-300-var{ border-color: var(--gray-300) !important; }
 
-/* --- Perspectives pills --- */
+/* --- Perspectives pill (now a rounded rectangle, wraps text) --- */
 .pill {
-  background: #E7F0FF;              /* soft blue chip */
-  border-radius: 40px;               /* large rounding */
+  background: #E7F0FF;
+  border-radius: 24px;
   padding: 24px 28px;
   box-shadow: 0 1px 2px rgba(44,46,72,.04);
 }
-
-/* let text wrap nicely in narrow widths */
 .pill, .pill * {
   min-width: 0;
-  overflow-wrap: anywhere;           /* modern wrap */
+  overflow-wrap: anywhere;
   word-break: normal;
   hyphens: auto;
   line-height: 1.45;
 }
-
-/* headings inside */
 .pill h3 {
   margin: 0 0 10px 0;
   color: var(--ink);
   font-family: 'Inter Tight','Inter',system-ui,sans-serif;
   font-weight: 800;
 }
-
-/* list spacing */
 .pill ul { margin: 10px 0 0; padding-left: 1.25rem; }
 .pill li { margin: 10px 0; color: var(--gray-700); }
