@@ -1,3 +1,4 @@
+// frontend/pages/ArticlePage.tsx
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
@@ -7,6 +8,7 @@ import ArticleCard from '../components/ArticleCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import Header from '../components/Header';
+import Footer from '../components/Footer';
 
 export default function ArticlePage() {
   const { id } = useParams<{ id: string }>();
@@ -31,36 +33,11 @@ export default function ArticlePage() {
     refetchOnWindowFocus: false,
   });
 
-  if (isLoading || isFetching) {
-    return (
-      <div className="min-h-screen bg-[#F7F7F7] font-['Inter',system-ui,sans-serif]">
-        <Header />
-        <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
-          <LoadingSpinner />
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !article) {
-    return (
-      <div className="min-h-screen bg-[#F7F7F7] font-['Inter',system-ui,sans-serif]">
-        <Header />
-        <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
-          <ErrorMessage
-            title="Article Not Found"
-            message="This article may have expired or doesn't exist."
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
+  const Shell = ({ children }: { children: React.ReactNode }) => (
     <div className="min-h-screen bg-[#F7F7F7] font-['Inter',system-ui,sans-serif]">
-      {/* Subtle grid background */}
-      <div 
-        className="fixed inset-0 opacity-10 pointer-events-none"
+      {/* Subtle grid background (md+ only, lighter opacity) */}
+      <div
+        className="hidden md:block fixed inset-0 opacity-5 pointer-events-none"
         style={{
           backgroundImage: `
             repeating-linear-gradient(
@@ -78,12 +55,9 @@ export default function ArticlePage() {
           `,
         }}
       />
-      
       <Header />
-      <main className="relative px-4 py-12">
-        <ArticleCard article={article} />
-      </main>
-      
+      {children}
+      <Footer />
       {/* Sticky mobile back button */}
       <button
         onClick={() => navigate('/')}
@@ -93,5 +67,38 @@ export default function ArticlePage() {
         <ArrowLeft className="h-5 w-5" />
       </button>
     </div>
+  );
+
+  if (isLoading || isFetching) {
+    return (
+      <Shell>
+        <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
+      </Shell>
+    );
+  }
+
+  if (error || !article) {
+    return (
+      <Shell>
+        <main className="relative px-4 py-12">
+          <div className="min-h-[40vh] flex items-center justify-center">
+            <ErrorMessage
+              title="Article Not Found"
+              message="This article may have expired or doesn't exist."
+            />
+          </div>
+        </main>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <main id="main" className="relative px-4 py-12" role="main" aria-labelledby="article-title">
+        <ArticleCard article={article} />
+      </main>
+    </Shell>
   );
 }
