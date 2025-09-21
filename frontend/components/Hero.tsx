@@ -137,3 +137,66 @@ export default function Hero() {
             onClick={() => setShowPasteModal(true)}
             disabled={processUrlMutation.isPending}
             className="btn-blush w-full h-12 text-base font-semibold focus-ring"
+          >
+            <FileText className="h-5 w-5 mr-2" />
+            Paste Article Text Instead
+          </Button>
+        </div>
+
+        {/* Feature chips */}
+        <div
+          className="flex flex-wrap justify-center gap-3 text-sm mb-4"
+          style={{ color: 'var(--gray-600)' }}
+        >
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+            Bias-aware
+          </div>
+
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-peach">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#3b82f6' }} />
+            Balanced summaries
+          </div>
+
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-sky">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#ec4899' }} />
+            Multiple perspectives
+          </div>
+
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#84cc16' }} />
+            Key quotes &amp; sources
+          </div>
+
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-blush">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#a855f7' }} />
+            Sentiment &amp; common ground
+          </div>
+
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#f97316' }} />
+            Works on most sites
+          </div>
+
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-peach">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#06b6d4' }} />
+            Auto-deletes after 24h
+          </div>
+        </div>
+      </div>
+
+      <PaywallModal
+        isOpen={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        resetTime={resetTime}
+      />
+
+      <PasteTextModal
+        isOpen={showPasteModal}
+        onClose={() => setShowPasteModal(false)}
+        onSubmit={handlePasteTextSubmit}
+        isLoading={processUrlMutation.isPending}
+      />
+    </section>
+  );
+}
