@@ -112,7 +112,7 @@ export default function SeeItInAction() {
           </div>
           
           {/* Title */}
-          <h1 className="headline-font text-3xl md:text-4xl mb-6 leading-tight article-title">
+          <h1 className="headline-font text-3xl md:text-4xl mb-6 leading-tight" style={{color: 'var(--sage)'}}>
             {demoAnalysis.meta.title}
           </h1>
 
