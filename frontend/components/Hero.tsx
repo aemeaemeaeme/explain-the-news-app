@@ -16,19 +16,52 @@ export default function Hero() {
   const { toast } = useToast();
 
   const processUrlMutation = useMutation({
-    mutationFn: (url: string) => backend.news.process({ url }),
+    mutationFn: async (url: string) => {
+      // Step 1: Extract content
+      const extractResult = await backend.news.extract({ url });
+      
+      if (extractResult.status === "limited") {
+        return {
+          success: false,
+          error: `Limited content extracted: ${extractResult.reason}. Try the original article link.`,
+          limited: true
+        };
+      }
+      
+      // Step 2: Analyze content
+      const analysisResult = await backend.news.analyze({
+        url: extractResult.url,
+        site: extractResult.site,
+        title: extractResult.title,
+        byline: extractResult.byline,
+        estReadMin: extractResult.estReadMin,
+        text: extractResult.text
+      });
+      
+      if (analysisResult.limited) {
+        return {
+          success: false,
+          error: `Analysis limited: ${analysisResult.reason}. ${analysisResult.advice || ''}`,
+          limited: true
+        };
+      }
+      
+      // Continue with existing process flow for now (save to DB)
+      return backend.news.process({ url });
+    },
     onSuccess: (response) => {
-      if (response.success && response.id) {
+      if ('success' in response && response.success && 'id' in response && response.id) {
         navigate(`/article/${response.id}`);
-      } else if (response.rateLimited) {
-        setResetTime(response.resetTime);
+      } else if ('rateLimited' in response && response.rateLimited) {
+        setResetTime('resetTime' in response ? response.resetTime : undefined);
         setShowPaywall(true);
       } else {
         console.warn('Process response:', response);
+        const isLimited = 'limited' in response && response.limited;
         toast({
-          title: 'Processing Failed',
-          description: response.error || "We couldn't process this article. Please try another URL.",
-          variant: 'destructive',
+          title: isLimited ? 'Limited Analysis' : 'Processing Failed',
+          description: ('error' in response ? response.error : undefined) || "We couldn't process this article. Please try another URL.",
+          variant: isLimited ? 'default' : 'destructive',
         });
       }
     },
