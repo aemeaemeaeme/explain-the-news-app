@@ -1,9 +1,9 @@
+// frontend/components/ArticleCard.tsx
 import React from 'react';
 import { Clock, Share, Handshake, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BiasBar from './BiasBar';
 import SentimentBar from './SentimentBar';
-import GlossaryTooltip from './GlossaryTooltip';
 import FollowUpQuestions from './FollowUpQuestions';
 import type { Article } from '~backend/news/get';
 
@@ -57,20 +57,20 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   }, [article]);
 
   return (
-    <article className="bg-white rounded-3xl card-shadow p-8 md:p-12 max-w-4xl mx-auto">
+    <article className="bg-white rounded-xl card-shadow p-8 md:p-12 max-w-4xl mx-auto">
       {/* Meta row */}
       <div className="flex flex-wrap items-center gap-2 text-sm mb-4">
-        <div className="chip-peach px-2 py-1 rounded">
+        <div className="chip-mist px-2 py-1 rounded">
           <span>{article.meta.byline || 'Unknown'}</span>
         </div>
-        <div className="chip-peach px-2 py-1 rounded">
+        <div className="chip-mist px-2 py-1 rounded">
           <span>{article.meta.domain}</span>
         </div>
-        <div className="chip-peach px-2 py-1 rounded flex items-center gap-1">
+        <div className="chip-mist px-2 py-1 rounded flex items-center gap-1">
           <Clock className="h-3 w-3" />
           <span>{article.reading_time_minutes} min read</span>
         </div>
-        <div className="chip-peach px-2 py-1 rounded text-xs font-medium">
+        <div className="chip-sky px-2 py-1 rounded text-xs font-medium">
           Tone: {article.tone}
         </div>
       </div>
@@ -103,7 +103,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       <div className="space-y-10">
         {/* TL;DR */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>TL;DR</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{ color: 'var(--ink)' }}>TL;DR</h2>
           <div className="space-y-4">
             {article.tldr.paragraphs && article.tldr.paragraphs.length > 0 ? (
               article.tldr.paragraphs.map((paragraph, index) => (
@@ -120,11 +120,11 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* ELI5 */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Explain Like I'm 5</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{ color: 'var(--ink)' }}>Explain Like I'm 5</h2>
           <div className="space-y-4">
             <p className="text-gray-700 leading-relaxed">{article.eli5.summary}</p>
             {article.eli5.analogy && (
-              <div className="p-4 rounded-xl" style={{backgroundColor: 'var(--sage)', borderColor: 'var(--sage-dark)'}}>
+              <div className="p-4 rounded-xl chip-mist">
                 <p className="text-gray-700">
                   <strong>Analogy:</strong> {article.eli5.analogy}
                 </p>
@@ -135,12 +135,12 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Why It Matters */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Why It Matters</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{ color: 'var(--ink)' }}>Why It Matters</h2>
           {article.why_it_matters.length > 0 ? (
             <ul className="space-y-3">
               {article.why_it_matters.map((point, index) => (
                 <li key={index} className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0" style={{backgroundColor: 'var(--sage)'}}></div>
+                  <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0" style={{ backgroundColor: 'var(--sage)' }}></div>
                   <span className="text-gray-700">{point}</span>
                 </li>
               ))}
@@ -152,7 +152,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Key Points */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Key Points</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{ color: 'var(--ink)' }}>Key Points</h2>
           {article.key_points.length > 0 ? (
             <div className="grid gap-3">
               {article.key_points.map((point, index) => (
@@ -171,8 +171,8 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Bias Analysis */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Bias Analysis</h2>
-          <BiasBar 
+          <h2 className="text-2xl font-semibold mb-4" style={{ color: 'var(--ink)' }}>Bias Analysis</h2>
+          <BiasBar
             left={article.bias.left}
             center={article.bias.center}
             right={article.bias.right}
@@ -187,29 +187,33 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Sentiment Analysis */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Sentiment</h2>
-          <SentimentBar 
+          <h2 className="text-2xl font-semibold mb-4" style={{ color: 'var(--ink)' }}>Sentiment</h2>
+          <SentimentBar
             positive={article.sentiment.positive}
             neutral={article.sentiment.neutral}
             negative={article.sentiment.negative}
-            rationale={article.sentiment.rationale}
           />
+          {article.sentiment.rationale && (
+            <p className="mt-3 text-sm text-gray-600">
+              {article.sentiment.rationale}
+            </p>
+          )}
         </section>
 
         {/* Perspectives */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Different Perspectives</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{ color: 'var(--ink)' }}>Different Perspectives</h2>
           {article.perspectives.length >= 2 ? (
             <div className="grid md:grid-cols-2 gap-6">
               {article.perspectives.slice(0, 2).map((perspective, index) => (
-                <div key={index} className="p-6 rounded-xl" style={{backgroundColor: 'var(--sky)'}}>
-                  <h3 className="font-semibold mb-3" style={{color: 'var(--ink)'}}>{perspective.label}</h3>
+                <div key={index} className="p-6 rounded-xl chip-sky">
+                  <h3 className="font-semibold mb-3" style={{ color: 'var(--ink)' }}>{perspective.label}</h3>
                   {perspective.summary && <p className="text-gray-700 mb-3">{perspective.summary}</p>}
                   {perspective.bullets.length > 0 && (
                     <ul className="space-y-2">
                       {perspective.bullets.map((bullet, i) => (
                         <li key={i} className="flex items-start gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{backgroundColor: 'var(--ink)'}}></div>
+                          <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{ backgroundColor: 'var(--ink)' }}></div>
                           <span className="text-gray-600 text-sm">{bullet}</span>
                         </li>
                       ))}
@@ -225,15 +229,15 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Common Ground */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2" style={{color: 'var(--ink)'}}>
-            <Handshake className="h-6 w-6" style={{color: 'var(--sage)'}} />
+          <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+            <Handshake className="h-6 w-6" style={{ color: 'var(--sage)' }} />
             Common Ground
           </h2>
           {article.common_ground.length > 0 ? (
             <ul className="space-y-3">
               {article.common_ground.map((point, index) => (
                 <li key={index} className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0" style={{backgroundColor: 'var(--sage)'}}></div>
+                  <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0" style={{ backgroundColor: 'var(--sage)' }}></div>
                   <span className="text-gray-700">{point}</span>
                 </li>
               ))}
@@ -245,12 +249,12 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Glossary */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Glossary</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{ color: 'var(--ink)' }}>Glossary</h2>
           {article.glossary.length > 0 ? (
             <div className="grid sm:grid-cols-2 gap-4">
               {article.glossary.map((item, index) => (
-                <div key={index} className="p-4 rounded-lg" style={{backgroundColor: 'var(--sage)'}}>
-                  <dt className="font-semibold" style={{color: 'var(--ink)'}}>{item.term}</dt>
+                <div key={index} className="p-4 rounded-lg chip-mist">
+                  <dt className="font-semibold" style={{ color: 'var(--ink)' }}>{item.term}</dt>
                   <dd className="text-gray-700 text-sm mt-1">{item.definition}</dd>
                 </div>
               ))}
@@ -262,7 +266,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Follow-up Questions */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4" style={{color: 'var(--ink)'}}>Follow-up Questions</h2>
+          <h2 className="text-2xl font-semibold mb-4" style={{ color: 'var(--ink)' }}>Follow-up Questions</h2>
           <FollowUpQuestions questions={article.follow_up_questions} />
         </section>
       </div>
