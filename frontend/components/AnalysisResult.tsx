@@ -279,24 +279,36 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
           </CardContent>
         </Card>
 
-        {/* Different Perspectives */}
-<h2 className="headline-font text-3xl md:text-4xl text-ink mb-6">Different Perspectives</h2>
+{/* Different Perspectives */}
+{analysis?.perspectives && (
+  <>
+    <h2 className="headline-font text-3xl md:text-4xl text-ink mb-6">
+      Different Perspectives
+    </h2>
 
-<div className="grid gap-6 lg:gap-8 grid-cols-1 lg:grid-cols-2">
-  <div className="pill">
-    <h3 className="text-2xl md:text-3xl">Climate Action Advocates</h3>
-    <ul className="text-lg md:text-xl">
-      {/* your <li> items stay the same */}
-    </ul>
-  </div>
+    <div className="grid gap-6 lg:gap-8 grid-cols-1 lg:grid-cols-2">
+      {/* Left / Climate Action Advocates */}
+      <div className="pill">
+        <h3 className="text-2xl md:text-3xl">Climate Action Advocates</h3>
+        <ul className="text-lg md:text-xl">
+          {(analysis.perspectives.left_view ?? []).map((pt: string, i: number) => (
+            <li key={`left-${i}`}>{pt}</li>
+          ))}
+        </ul>
+      </div>
 
-  <div className="pill">
-    <h3 className="text-2xl md:text-3xl">Industry & Economic Concerns</h3>
-    <ul className="text-lg md:text-xl">
-      {/* your <li> items stay the same */}
-    </ul>
-  </div>
-</div>
+      {/* Right / Industry & Economic Concerns */}
+      <div className="pill">
+        <h3 className="text-2xl md:text-3xl">Industry &amp; Economic Concerns</h3>
+        <ul className="text-lg md:text-xl">
+          {(analysis.perspectives.right_view ?? []).map((pt: string, i: number) => (
+            <li key={`right-${i}`}>{pt}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </>
+)}
 
               
               {analysis.perspectives.center_view.length > 0 && (
