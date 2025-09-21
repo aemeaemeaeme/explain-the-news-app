@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import LandingPage from './pages/LandingPage';
 import ArticlePage from './pages/ArticlePage';
+import AnalysisPage from './pages/AnalysisPage';
 import HowItWorksPage from './pages/HowItWorksPage';
 import ExamplesPage from './pages/ExamplesPage';
 import ContactPage from './pages/ContactPage';
@@ -18,6 +19,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/article/:id" element={<ArticlePage />} />
+            <Route path="/article/temp" element={<AnalysisPage />} />
             <Route path="/how-it-works" element={<HowItWorksPage />} />
             <Route path="/examples" element={<ExamplesPage />} />
             <Route path="/contact" element={<ContactPage />} />

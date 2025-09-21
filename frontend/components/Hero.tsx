@@ -17,78 +17,27 @@ export default function Hero() {
 
   const processUrlMutation = useMutation({
     mutationFn: async (url: string) => {
-      // Step 1: Extract content
-      const extractResult = await backend.news.extract({ url });
-      
-      if (extractResult.status === "limited") {
-        // Map specific error reasons to user-friendly messages
-        const errorMessages = {
-          site_protection: "This site blocks automated readers. Try opening the original article or use another link.",
-          api_error: "Service issue. Please retry in a moment.",
-          insufficient_text: "Couldn't get enough article text from this page.",
-          extraction_failed: "Failed to extract content. This site may have strong protection."
-        };
-        
-        const reason = extractResult.reason || 'unknown';
-        const message = errorMessages[reason as keyof typeof errorMessages] || 
-                       `Content extraction limited: ${reason}. Try the original article link.`;
-        
-        return {
-          success: false,
-          error: message,
-          limited: true,
-          reason: reason
-        };
-      }
-      
-      // Step 2: Analyze content
-      const analysisResult = await backend.news.analyze({
-        url: extractResult.url,
-        site: extractResult.site,
-        title: extractResult.title,
-        byline: extractResult.byline,
-        estReadMin: extractResult.estReadMin,
-        text: extractResult.text
-      });
-      
-      if (analysisResult.limited) {
-        const errorMessages = {
-          insufficient_text: "Article text is too short for meaningful analysis. Try the original link.",
-          api_not_configured: "Analysis service is not properly configured.",
-          analysis_failed: "The analysis service encountered an error processing this content.",
-          api_error: "Analysis service is temporarily unavailable. Please try again later."
-        };
-        
-        const reason = analysisResult.reason || 'unknown';
-        const message = errorMessages[reason as keyof typeof errorMessages] || 
-                       analysisResult.advice ||
-                       `Analysis limited: ${reason}`;
-        
-        return {
-          success: false,
-          error: message,
-          limited: true,
-          reason: reason
-        };
-      }
-      
-      // Continue with existing process flow for now (save to DB)
-      return backend.news.process({ url });
+      // Use the new unified explain API
+      return backend.news.explain({ url });
     },
     onSuccess: (response) => {
-      if ('success' in response && response.success && 'id' in response && response.id) {
-        navigate(`/article/${response.id}`);
-      } else if ('rateLimited' in response && response.rateLimited) {
-        setResetTime('resetTime' in response ? response.resetTime : undefined);
-        setShowPaywall(true);
-      } else {
-        console.warn('Process response:', response);
-        const isLimited = 'limited' in response && response.limited;
+      if (response.meta.status === 'error') {
         toast({
-          title: isLimited ? 'Limited Analysis' : 'Processing Failed',
-          description: ('error' in response ? response.error : undefined) || "We couldn't process this article. Please try another URL.",
-          variant: isLimited ? 'default' : 'destructive',
+          title: 'Analysis Failed',
+          description: response.tldr || "We couldn't process this article. Please try another URL.",
+          variant: 'destructive',
         });
+      } else if (response.meta.status === 'limited') {
+        toast({
+          title: 'Limited Analysis',
+          description: 'Limited Analysis — some sites restrict automated access. We used reliable metadata and neutral context.',
+          variant: 'default',
+        });
+        // Navigate to results page with the response data
+        navigate('/article/temp', { state: { analysis: response } });
+      } else {
+        // Navigate to results page with the response data
+        navigate('/article/temp', { state: { analysis: response } });
       }
     },
     onError: (error: any) => {
@@ -121,9 +70,9 @@ export default function Hero() {
     <section className="relative py-24 px-4 bg-[#F7F7F7]">
       <div className="relative max-w-5xl mx-auto text-center">
         <h1 className="headline-font text-5xl md:text-7xl mb-6 leading-tight">
-          <span style={{color: 'var(--ink)'}}>See the Story,</span>
+          <span style={{color: 'var(--ink)', fontWeight: 'bold'}}>See the Story,</span>
           <br />
-          <span style={{color: 'var(--sage)'}}>Not the Spin</span>
+          <span style={{color: 'var(--sage)', fontWeight: 'bold'}}>Not the Spin</span>
         </h1>
 
         <p className="text-xl mb-12 max-w-3xl mx-auto leading-relaxed" style={{color: 'var(--gray-600)'}}>
@@ -165,31 +114,31 @@ export default function Hero() {
 
         <div className="flex flex-wrap justify-center gap-3 text-sm mb-4" style={{color: 'var(--gray-600)'}}>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
-            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#22c55e'}}></div>
             Bias-aware
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
-            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#3b82f6'}}></div>
             Balanced summaries
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-sky">
-            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--accent-blue)'}}></div>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#ec4899'}}></div>
             Multiple perspectives
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
-            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#84cc16'}}></div>
             Key quotes & sources
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-blush">
-            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--accent-red)'}}></div>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#a855f7'}}></div>
             Sentiment & common ground
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
-            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#f97316'}}></div>
             Works on any site
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
-            <div className="w-2 h-2 rounded-full" style={{backgroundColor: 'var(--sage)'}}></div>
+            <div className="w-2 h-2 rounded-full" style={{backgroundColor: '#06b6d4'}}></div>
             Auto-deletes after 24h
           </div>
         </div>

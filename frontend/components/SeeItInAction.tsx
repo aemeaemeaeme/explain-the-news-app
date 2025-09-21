@@ -82,7 +82,7 @@ export default function SeeItInAction() {
       <div className="max-w-6xl mx-auto">
         {/* Section Header */}
         <div className="text-center mb-16">
-          <h2 className="headline-font text-4xl md:text-5xl mb-6" style={{color: 'var(--sage)'}}>
+          <h2 className="headline-font text-4xl md:text-5xl mb-6 font-bold" style={{color: 'var(--sage)'}}>
             See It In Action
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
@@ -112,9 +112,18 @@ export default function SeeItInAction() {
           </div>
           
           {/* Title */}
-          <h1 className="headline-font text-3xl md:text-4xl mb-6 leading-tight text-gray-800">
-            {demoAnalysis.meta.title}
+          <h1 className="headline-font text-3xl md:text-4xl mb-4 leading-tight text-gray-800 font-bold">
+            <span className="text-sage-600 underline decoration-sage-300" style={{ textDecorationColor: 'var(--sage)' }}>
+              {demoAnalysis.meta.title}
+            </span>
           </h1>
+          
+          {/* Provider Badge */}
+          <div className="mb-6">
+            <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-medium">
+              OpenAI • gpt-4o-mini
+            </span>
+          </div>
 
           <div className="space-y-10">
             {/* TL;DR */}
