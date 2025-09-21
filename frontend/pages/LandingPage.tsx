@@ -8,7 +8,7 @@ import Footer from '../components/Footer';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#F7F7F7] font-['Inter',system-ui,sans-serif]">
+    <div className="min-h-screen grid-bg font-['Inter',system-ui,sans-serif]">
       <Header />
       <Hero />
       <TrustStrip />
