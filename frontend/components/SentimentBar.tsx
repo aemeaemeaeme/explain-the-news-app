@@ -1,3 +1,4 @@
+// frontend/components/SentimentBar.tsx
 interface SentimentBarProps {
   positive: number;
   neutral: number;
@@ -6,40 +7,73 @@ interface SentimentBarProps {
 }
 
 export default function SentimentBar({ positive, neutral, negative, rationale }: SentimentBarProps) {
+  const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+
+  const P = clampPct(positive);
+  const N = clampPct(neutral);
+  // keep total at 100 visually even if upstream is a bit off
+  const Neg = Math.max(0, 100 - P - N);
+
   return (
     <div className="space-y-3">
-      <div className="flex rounded-lg overflow-hidden h-8">
-        <div 
-          className="bg-green-500 flex items-center justify-center text-white text-sm font-medium"
-          style={{ width: `${positive}%` }}
-          aria-label={`Positive sentiment: ${positive}%`}
+      {/* Squared bar (no ovals) */}
+      <div
+        className="flex overflow-hidden h-6 bg-gray-100 rounded-xl ring-1 ring-gray-200"
+        role="img"
+        aria-label={`Sentiment distribution: Positive ${P}%, Neutral ${N}%, Negative ${Neg}%.`}
+      >
+        <div
+          className="flex items-center justify-center text-white text-xs font-medium"
+          style={{
+            width: `${P}%`,
+            backgroundColor: 'var(--sage)', // brand green
+          }}
+          aria-label={`Positive sentiment: ${P}%`}
         >
-          {positive > 15 && `${positive}%`}
+          {P > 14 && `${P}%`}
         </div>
-        <div 
-          className="bg-gray-400 flex items-center justify-center text-white text-sm font-medium"
-          style={{ width: `${neutral}%` }}
-          aria-label={`Neutral sentiment: ${neutral}%`}
+        <div
+          className="flex items-center justify-center text-white text-xs font-medium"
+          style={{
+            width: `${N}%`,
+            backgroundColor: '#94a3b8', // gray-400
+            borderLeft: N > 0 && P > 0 ? '1px solid rgba(255,255,255,0.4)' : undefined,
+            borderRight: N > 0 && Neg > 0 ? '1px solid rgba(255,255,255,0.4)' : undefined,
+          }}
+          aria-label={`Neutral sentiment: ${N}%`}
         >
-          {neutral > 15 && `${neutral}%`}
+          {N > 14 && `${N}%`}
         </div>
-        <div 
-          className="bg-red-500 flex items-center justify-center text-white text-sm font-medium"
-          style={{ width: `${negative}%` }}
-          aria-label={`Negative sentiment: ${negative}%`}
+        <div
+          className="flex items-center justify-center text-white text-xs font-medium"
+          style={{
+            width: `${Neg}%`,
+            backgroundColor: '#ef4444', // red-500
+          }}
+          aria-label={`Negative sentiment: ${Neg}%`}
         >
-          {negative > 15 && `${negative}%`}
+          {Neg > 14 && `${Neg}%`}
         </div>
       </div>
-      
-      <div className="flex justify-between text-sm text-gray-600 font-['Inter',system-ui,sans-serif]">
-        <span>Positive ({positive}%)</span>
-        <span>Neutral ({neutral}%)</span>
-        <span>Negative ({negative}%)</span>
+
+      {/* Legend with square-ish markers */}
+      <div className="flex justify-between text-sm text-gray-700">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3" style={{ backgroundColor: 'var(--sage)', borderRadius: '6px' }} />
+          <span>Positive ({P}%)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3" style={{ backgroundColor: '#94a3b8', borderRadius: '6px' }} />
+          <span>Neutral ({N}%)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3" style={{ backgroundColor: '#ef4444', borderRadius: '6px' }} />
+          <span>Negative ({Neg}%)</span>
+        </div>
       </div>
-      
+
       {rationale && (
-        <p className="text-sm text-gray-500 font-['Inter',system-ui,sans-serif]">
+        <p className="text-sm text-gray-600">
           {rationale}
         </p>
       )}
