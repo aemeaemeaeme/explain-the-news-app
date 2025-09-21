@@ -44,7 +44,7 @@ export default function Header() {
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
             <BookOpen className="h-8 w-8 text-[#0B1B2B]" />
-            <span className="text-xl font-bold text-[#0B1B2B]">Unspin</span>
+            <span className="text-xl font-bold text-[#0B1B2B]">Unspin.</span>
           </Link>
 
           {/* Desktop Navigation */}
