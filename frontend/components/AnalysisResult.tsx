@@ -1,22 +1,22 @@
+// frontend/components/AnalysisResult.tsx
 import { ArrowLeft, Clock, ExternalLink, FileText, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import BiasBar from './BiasBar';
 import SentimentBar from './SentimentBar';
-import GlossaryTooltip from './GlossaryTooltip';
 import { useNavigate } from 'react-router-dom';
 
 interface AnalysisProps {
-  status: "full" | "limited";
+  status: 'full' | 'limited';
   meta: {
     title: string;
     source: string;
     author: string | null;
     published: string | null;
     reading_minutes: number;
-    tone: "factual" | "analytical" | "opinion" | "mixed";
-    provider: "gemini" | "openai";
+    tone: 'factual' | 'analytical' | 'opinion' | 'mixed';
+    provider: 'gemini' | 'openai';
     model: string;
     fallback_used: boolean;
   };
@@ -24,14 +24,14 @@ interface AnalysisProps {
   eli5: string;
   why_it_matters: string[];
   key_points: Array<{
-    tag: "fact" | "numbers" | "timeline" | "stakeholders" | "quote";
+    tag: 'fact' | 'numbers' | 'timeline' | 'stakeholders' | 'quote';
     text: string;
   }>;
   bias_analysis: {
     left: number;
     center: number;
     right: number;
-    confidence: "low" | "med" | "high";
+    confidence: 'low' | 'med' | 'high';
     notes: string;
   };
   sentiment: {
@@ -46,10 +46,7 @@ interface AnalysisProps {
     right_view: string[];
   };
   common_ground: string[];
-  glossary: Array<{
-    term: string;
-    definition: string;
-  }>;
+  glossary: Array<{ term: string; definition: string }>;
   followups: string[];
   processing_notes: string[];
 }
@@ -61,30 +58,58 @@ interface AnalysisResultProps {
 export default function AnalysisResult({ analysis }: AnalysisResultProps) {
   const navigate = useNavigate();
 
+  // Defensive defaults so UI never crashes on partial data
+  const meta = analysis?.meta ?? {
+    title: 'Untitled',
+    source: 'unknown',
+    author: null,
+    published: null,
+    reading_minutes: 0,
+    tone: 'factual',
+    provider: 'gemini',
+    model: '',
+    fallback_used: false,
+  };
+
   const getTagColor = (tag: string) => {
     switch (tag) {
-      case 'fact': return 'bg-blue-100 text-blue-800';
-      case 'timeline': return 'bg-green-100 text-green-800';
-      case 'numbers': return 'bg-purple-100 text-purple-800';
-      case 'stakeholders': return 'bg-orange-100 text-orange-800';
-      case 'quote': return 'bg-pink-100 text-pink-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'fact':
+        return 'bg-blue-100 text-blue-800';
+      case 'timeline':
+        return 'bg-green-100 text-green-800';
+      case 'numbers':
+        return 'bg-purple-100 text-purple-800';
+      case 'stakeholders':
+        return 'bg-orange-100 text-orange-800';
+      case 'quote':
+        return 'bg-pink-100 text-pink-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getToneColor = (tone: string) => {
     switch (tone) {
-      case 'factual': return 'bg-blue-100 text-blue-800';
-      case 'analytical': return 'bg-green-100 text-green-800';
-      case 'mixed': return 'bg-yellow-100 text-yellow-800';
-      case 'opinion': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'factual':
+        return 'bg-blue-100 text-blue-800';
+      case 'analytical':
+        return 'bg-green-100 text-green-800';
+      case 'mixed':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'opinion':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
   const handlePasteText = () => {
     navigate('/', { state: { showPasteModal: true } });
   };
+
+  const left = analysis?.perspectives?.left_view ?? [];
+  const center = analysis?.perspectives?.center_view ?? [];
+  const right = analysis?.perspectives?.right_view ?? [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -96,13 +121,15 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Search
             </Button>
+
             <Badge
               variant="outline"
-              className={`${analysis.status === 'full' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}
+              className={analysis?.status === 'full' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}
             >
-              {analysis.status === 'full' ? 'Full Analysis' : 'Limited Analysis'}
+              {analysis?.status === 'full' ? 'Full Analysis' : 'Limited Analysis'}
             </Badge>
-            {analysis.meta.fallback_used && (
+
+            {meta.fallback_used && (
               <Badge variant="outline" className="bg-orange-100 text-orange-800">
                 <AlertTriangle className="h-3 w-3 mr-1" />
                 Fallback Used
@@ -110,21 +137,25 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
             )}
           </div>
 
-          <h1 className="text-2xl font-bold mb-2">{analysis.meta.title}</h1>
+          <h1 className="text-2xl font-bold mb-2">{meta.title}</h1>
 
           <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-            {analysis.meta.author && <span>By {analysis.meta.author}</span>}
-            {analysis.meta.reading_minutes && (
+            {meta.author && <span>By {meta.author}</span>}
+
+            {meta.reading_minutes ? (
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                <span>{analysis.meta.reading_minutes} min read</span>
+                <span>{meta.reading_minutes} min read</span>
               </div>
-            )}
-            <span className="capitalize">{analysis.meta.source}</span>
-            <Badge className={getToneColor(analysis.meta.tone)}>{analysis.meta.tone}</Badge>
-            {analysis.meta.source !== 'user_input' && (
+            ) : null}
+
+            <span className="capitalize">{meta.source}</span>
+
+            <Badge className={getToneColor(meta.tone)}>{meta.tone}</Badge>
+
+            {meta.source && meta.source !== 'user_input' && (
               <a
-                href={`https://${analysis.meta.source}`}
+                href={`https://${meta.source}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
@@ -137,8 +168,8 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
 
           <div className="mt-4">
             <Badge variant="secondary" className="text-xs">
-              {analysis.meta.provider === 'openai' ? 'OpenAI' : 'Gemini'} • {analysis.meta.model}
-              {analysis.meta.fallback_used && ' (fallback)'}
+              {meta.provider === 'openai' ? 'OpenAI' : 'Gemini'} • {meta.model || 'model'}
+              {meta.fallback_used && ' (fallback)'}
             </Badge>
           </div>
         </div>
@@ -147,8 +178,8 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
         {/* Limited banner */}
-        {analysis.status === 'limited' && (
-          <Card className="border-yellow-200 bg-yellow-50">
+        {analysis?.status === 'limited' && (
+          <Card className="border-yellow-200 bg-yellow-50 rounded-xl">
             <CardContent className="pt-6">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
@@ -161,14 +192,19 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
                       variant="outline"
                       size="sm"
                       onClick={handlePasteText}
-                      className="border-yellow-300 text-yellow-800 hover:bg-yellow-100"
+                      className="border-yellow-300 text-yellow-800 hover:bg-yellow-100 rounded-lg"
                     >
                       <FileText className="h-4 w-4 mr-2" />
                       Paste Article Text
                     </Button>
-                    {analysis.meta.source !== 'user_input' && (
-                      <Button variant="outline" size="sm" asChild className="border-yellow-300 text-yellow-800 hover:bg-yellow-100">
-                        <a href={`https://${analysis.meta.source}`} target="_blank" rel="noopener noreferrer">
+                    {meta.source !== 'user_input' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="border-yellow-300 text-yellow-800 hover:bg-yellow-100 rounded-lg"
+                      >
+                        <a href={`https://${meta.source}`} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="h-4 w-4 mr-2" />
                           Open Original
                         </a>
@@ -182,108 +218,140 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
         )}
 
         {/* TL;DR */}
-        <Card>
-          <CardHeader><CardTitle>TL;DR</CardTitle></CardHeader>
-          <CardContent><p className="text-lg">{analysis.tldr}</p></CardContent>
+        <Card className="rounded-xl">
+          <CardHeader>
+            <CardTitle>TL;DR</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg">{analysis?.tldr || 'Summary unavailable.'}</p>
+          </CardContent>
         </Card>
 
         {/* ELI5 */}
-        <Card>
-          <CardHeader><CardTitle>Explain Like I'm 5</CardTitle></CardHeader>
-          <CardContent><p>{analysis.eli5}</p></CardContent>
+        <Card className="rounded-xl">
+          <CardHeader>
+            <CardTitle>Explain Like I&apos;m 5</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>{analysis?.eli5 || 'Simplified explanation not available.'}</p>
+          </CardContent>
         </Card>
 
         {/* Why It Matters */}
-        <Card>
-          <CardHeader><CardTitle>Why It Matters</CardTitle></CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {analysis.why_it_matters.map((matter, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>{matter}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        {Array.isArray(analysis?.why_it_matters) && analysis.why_it_matters.length > 0 && (
+          <Card className="rounded-xl">
+            <CardHeader>
+              <CardTitle>Why It Matters</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {analysis.why_it_matters.map((matter, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">•</span>
+                    <span>{matter}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Key Points */}
-        <Card>
-          <CardHeader><CardTitle>Key Points</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {analysis.key_points.map((point, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <Badge className={getTagColor(point.tag)} variant="secondary">{point.tag}</Badge>
-                  <span className="flex-1">{point.text}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {Array.isArray(analysis?.key_points) && analysis.key_points.length > 0 && (
+          <Card className="rounded-xl">
+            <CardHeader>
+              <CardTitle>Key Points</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {analysis.key_points.map((point, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <Badge className={getTagColor(point.tag)} variant="secondary">
+                      {point.tag}
+                    </Badge>
+                    <span className="flex-1">{point.text}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Bias */}
-        <Card>
-          <CardHeader><CardTitle>Bias Analysis</CardTitle></CardHeader>
+        <Card className="rounded-xl">
+          <CardHeader>
+            <CardTitle>Bias Analysis</CardTitle>
+          </CardHeader>
           <CardContent>
             <BiasBar
-              left={analysis.bias_analysis.left}
-              center={analysis.bias_analysis.center}
-              right={analysis.bias_analysis.right}
-              confidence={analysis.bias_analysis.confidence}
+              left={analysis?.bias_analysis?.left ?? 0}
+              center={analysis?.bias_analysis?.center ?? 0}
+              right={analysis?.bias_analysis?.right ?? 0}
+              confidence={analysis?.bias_analysis?.confidence ?? 'low'}
             />
-            <p className="text-sm text-gray-600 mt-3">{analysis.bias_analysis.notes}</p>
+            {analysis?.bias_analysis?.notes && (
+              <p className="text-sm text-gray-600 mt-3">{analysis.bias_analysis.notes}</p>
+            )}
           </CardContent>
         </Card>
 
         {/* Sentiment */}
-        <Card>
-          <CardHeader><CardTitle>Sentiment</CardTitle></CardHeader>
+        <Card className="rounded-xl">
+          <CardHeader>
+            <CardTitle>Sentiment</CardTitle>
+          </CardHeader>
           <CardContent>
             <SentimentBar
-              positive={analysis.sentiment.positive}
-              neutral={analysis.sentiment.neutral}
-              negative={analysis.sentiment.negative}
+              positive={analysis?.sentiment?.positive ?? 0}
+              neutral={analysis?.sentiment?.neutral ?? 0}
+              negative={analysis?.sentiment?.negative ?? 0}
             />
-            <p className="text-sm text-gray-600 mt-3">{analysis.sentiment.notes}</p>
+            {analysis?.sentiment?.notes && (
+              <p className="text-sm text-gray-600 mt-3">{analysis.sentiment.notes}</p>
+            )}
           </CardContent>
         </Card>
 
-        {/* Different Perspectives */}
-        {analysis?.perspectives && (
+        {/* Different Perspectives – squared rounded cards (no ovals) */}
+        {(left.length > 0 || right.length > 0 || center.length > 0) && (
           <>
             <h2 className="headline-font text-3xl md:text-4xl text-ink mb-6">Different Perspectives</h2>
 
             <div className="grid gap-6 lg:gap-8 grid-cols-1 lg:grid-cols-2">
-              <div className="pill">
-                <h3 className="text-2xl md:text-3xl">Climate Action Advocates</h3>
-                <ul className="text-lg md:text-xl">
-                  {(analysis.perspectives.left_view ?? []).map((pt: string, i: number) => (
-                    <li key={`left-${i}`}>{pt}</li>
-                  ))}
-                </ul>
-              </div>
+              {left.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <h3 className="text-xl md:text-2xl font-semibold text-ink mb-3">Left-Leaning View</h3>
+                  <ul className="space-y-2 text-base">
+                    {left.map((pt, i) => (
+                      <li key={`left-${i}`}>{pt}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-              <div className="pill">
-                <h3 className="text-2xl md:text-3xl">Industry &amp; Economic Concerns</h3>
-                <ul className="text-lg md:text-xl">
-                  {(analysis.perspectives.right_view ?? []).map((pt: string, i: number) => (
-                    <li key={`right-${i}`}>{pt}</li>
-                  ))}
-                </ul>
-              </div>
+              {right.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <h3 className="text-xl md:text-2xl font-semibold text-ink mb-3">Right-Leaning View</h3>
+                  <ul className="space-y-2 text-base">
+                    {right.map((pt, i) => (
+                      <li key={`right-${i}`}>{pt}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
-            {analysis.perspectives.center_view?.length > 0 && (
-              <Card>
-                <CardHeader><CardTitle>Centrist View</CardTitle></CardHeader>
+            {center.length > 0 && (
+              <Card className="rounded-xl">
+                <CardHeader>
+                  <CardTitle>Centrist View</CardTitle>
+                </CardHeader>
                 <CardContent>
-                  <ul className="space-y-1 text-base">
-                    {analysis.perspectives.center_view.map((view, i) => (
-                      <li key={i} className="flex items-start gap-2">
+                  <ul className="space-y-2 text-base">
+                    {center.map((pt, i) => (
+                      <li key={`center-${i}`} className="flex items-start gap-2">
                         <span className="text-green-600 mt-1">•</span>
-                        <span>{view}</span>
+                        <span>{pt}</span>
                       </li>
                     ))}
                   </ul>
@@ -294,9 +362,11 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
         )}
 
         {/* Common Ground */}
-        {analysis.common_ground.length > 0 && (
-          <Card>
-            <CardHeader><CardTitle>Common Ground</CardTitle></CardHeader>
+        {Array.isArray(analysis?.common_ground) && analysis.common_ground.length > 0 && (
+          <Card className="rounded-xl">
+            <CardHeader>
+              <CardTitle>Common Ground</CardTitle>
+            </CardHeader>
             <CardContent>
               <ul className="space-y-2">
                 {analysis.common_ground.map((ground, i) => (
@@ -311,9 +381,11 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
         )}
 
         {/* Glossary */}
-        {analysis.glossary.length > 0 && (
-          <Card>
-            <CardHeader><CardTitle>Glossary</CardTitle></CardHeader>
+        {Array.isArray(analysis?.glossary) && analysis.glossary.length > 0 && (
+          <Card className="rounded-xl">
+            <CardHeader>
+              <CardTitle>Glossary</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 gap-4">
                 {analysis.glossary.map((item, i) => (
@@ -328,9 +400,11 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
         )}
 
         {/* Follow-ups */}
-        {analysis.followups?.length > 0 && (
-          <Card>
-            <CardHeader><CardTitle>Follow-up Questions</CardTitle></CardHeader>
+        {Array.isArray(analysis?.followups) && analysis.followups.length > 0 && (
+          <Card className="rounded-xl">
+            <CardHeader>
+              <CardTitle>Follow-up Questions</CardTitle>
+            </CardHeader>
             <CardContent>
               <ul className="space-y-2">
                 {analysis.followups.map((question, i) => (
@@ -345,12 +419,16 @@ export default function AnalysisResult({ analysis }: AnalysisResultProps) {
         )}
 
         {/* Processing Notes */}
-        {analysis.processing_notes?.length > 0 && (
-          <Card className="border-gray-200 bg-gray-50">
-            <CardHeader><CardTitle className="text-gray-800">Processing Notes</CardTitle></CardHeader>
+        {Array.isArray(analysis?.processing_notes) && analysis.processing_notes.length > 0 && (
+          <Card className="border-gray-200 bg-gray-50 rounded-xl">
+            <CardHeader>
+              <CardTitle className="text-gray-800">Processing Notes</CardTitle>
+            </CardHeader>
             <CardContent>
               <ul className="space-y-1 text-sm text-gray-700">
-                {analysis.processing_notes.map((note, i) => (<li key={i}>• {note}</li>))}
+                {analysis.processing_notes.map((note, i) => (
+                  <li key={i}>• {note}</li>
+                ))}
               </ul>
             </CardContent>
           </Card>
