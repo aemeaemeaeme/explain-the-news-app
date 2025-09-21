@@ -39,9 +39,10 @@ async function fetchWithRetries(url: string, retries = 2): Promise<string> {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.9',
           'Cache-Control': 'no-cache',
-          'Accept-Encoding': 'gzip, deflate',
+          // Deliberately omit Accept-Encoding to avoid compressed body decoding issues server-side
         },
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(20000),
+        redirect: 'follow',
       });
 
       if (!response.ok) {
@@ -51,7 +52,6 @@ async function fetchWithRetries(url: string, retries = 2): Promise<string> {
       return await response.text();
     } catch (error) {
       console.log(`Attempt ${i + 1} failed for ${url}:`, error);
-      
       if (i < retries) {
         const backoff = 500 + Math.random() * 1000;
         await sleep(backoff);
@@ -155,57 +155,53 @@ function simpleReadability(html: string): { content: string; textContent: string
   };
 }
 
-function findAmpUrl(html: string, originalUrl: string): string | null {
-  // Look for AMP link
-  const ampMatch = html.match(/<link[^>]*rel=["']amphtml["'][^>]*href=["']([^"']+)["']/i);
-  if (ampMatch) {
-    const ampUrl = ampMatch[1];
-    return ampUrl.startsWith('http') ? ampUrl : new URL(ampUrl, originalUrl).href;
+function findAmpUrls(html: string, originalUrl: string): string[] {
+  const ampCandidates: string[] = [];
+
+  const ampLink = html.match(/<link[^>]*rel=["']amphtml["'][^>]*href=["']([^"']+)["']/i);
+  if (ampLink && ampLink[1]) {
+    const abs = ampLink[1].startsWith('http')
+      ? ampLink[1]
+      : new URL(ampLink[1], originalUrl).href;
+    ampCandidates.push(abs);
   }
-  
-  // Try common AMP patterns
-  const url = new URL(originalUrl);
-  const ampVariants = [
-    `${url.protocol}//${url.host}${url.pathname}/amp`,
-    `${url.protocol}//${url.host}${url.pathname}?amp=1`,
-    `${url.protocol}//${url.host}${url.pathname}/amp.html`,
-    `${url.protocol}//${url.host}/amp${url.pathname}`
+
+  const u = new URL(originalUrl);
+  const variants = [
+    `${u.origin}${u.pathname.replace(/\/$/, '')}/amp`,
+    `${u.origin}${u.pathname.replace(/\/$/, '')}/amp.html`,
+    `${u.origin}${u.pathname.replace(/\/$/, '')}?amp=1`,
+    `${u.origin}/amp${u.pathname}`
   ];
-  
-  return ampVariants[0]; // Return first variant to try
+
+  for (const v of variants) {
+    if (!ampCandidates.includes(v)) ampCandidates.push(v);
+  }
+
+  return ampCandidates;
 }
 
 function extractJsonLd(html: string): string {
-  const jsonLdMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([^<]+)<\/script>/gi);
-  
+  const jsonLdMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
   if (!jsonLdMatches) return '';
-  
-  for (const match of jsonLdMatches) {
+
+  for (const tag of jsonLdMatches) {
     try {
-      const jsonText = match.replace(/<script[^>]*>/, '').replace(/<\/script>/, '');
+      const jsonText = tag.replace(/^<script[^>]*>/i, '').replace(/<\/script>$/i, '');
       const data = JSON.parse(jsonText);
-      
-      // Handle both single objects and arrays
       const items = Array.isArray(data) ? data : [data];
-      
+
       for (const item of items) {
         if (item['@type'] === 'NewsArticle' || item['@type'] === 'Article') {
-          if (item.articleBody && typeof item.articleBody === 'string') {
-            return item.articleBody;
-          }
-          if (item.text && typeof item.text === 'string') {
-            return item.text;
-          }
-          if (Array.isArray(item.paragraph)) {
-            return item.paragraph.join('\n\n');
-          }
+          if (typeof item.articleBody === 'string') return item.articleBody;
+          if (typeof item.text === 'string') return item.text;
+          if (Array.isArray(item.paragraph)) return item.paragraph.join('\n\n');
         }
       }
     } catch (e) {
-      console.log('JSON-LD parse error:', e);
+      // continue
     }
   }
-  
   return '';
 }
 
@@ -222,7 +218,7 @@ function extractOpenGraphContent(html: string): string {
   // Add some paragraph content as fallback
   const paragraphs = html.match(/<p[^>]*>([^<]+)<\/p>/gi) || [];
   const firstParagraphs = paragraphs
-    .slice(0, 3)
+    .slice(0, 6) // was 3
     .map(p => p.replace(/<[^>]+>/g, '').trim())
     .filter(p => p.length > 20)
     .join('\n\n');
@@ -235,7 +231,6 @@ async function tryAmpUrl(ampUrl: string): Promise<{ content: string; textContent
   try {
     const html = await fetchWithRetries(ampUrl, 1);
     const result = simpleReadability(html);
-    
     if (result.textContent.length >= 800) {
       return result;
     }
@@ -291,6 +286,27 @@ function getDomainAdapter(domain: string) {
         }
       }
       return simpleReadability(html);
+    },
+
+    'foxnews.com': (html) => {
+      const blocks = html.match(/<div[^>]*class="[^"]*article-body[^"]*"[^>]*>([\s\S]*?)<\/div>/gi)
+        || html.match(/<p[^>]*class="[^"]*article-body[^"]*"[^>]*>([\s\S]*?)<\/p>/gi);
+      if (blocks && blocks.length > 3) {
+        const content = Array.isArray(blocks) ? blocks.join('\n') : String(blocks);
+        const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (textContent.length > 500) return { content, textContent };
+      }
+      return simpleReadability(html);
+    },
+
+    'politico.com': (html) => {
+      const m = html.match(/<div[^>]*class="[^"]*(?:story-text|article-content|content-group)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+      if (m && m[1]) {
+        const content = m[1];
+        const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (textContent.length > 600) return { content, textContent };
+      }
+      return simpleReadability(html);
     }
   };
 
@@ -332,10 +348,10 @@ export const fetchArticle = api<FetchArticleRequest, FetchArticleResponse>(
         };
       }
       
-      // Step 2: Try AMP
+      // Step 2: Try AMP (iterate through multiple candidates)
       console.log('📱 Step 2: Trying AMP');
-      const ampUrl = findAmpUrl(html, url);
-      if (ampUrl) {
+      const ampUrls = findAmpUrls(html, url);
+      for (const ampUrl of ampUrls) {
         const ampResult = await tryAmpUrl(ampUrl);
         if (ampResult && ampResult.textContent.length >= 900) {
           console.log(`✅ Step 2 AMP success: ${ampResult.textContent.length} chars`);
@@ -400,15 +416,15 @@ export const fetchArticle = api<FetchArticleRequest, FetchArticleResponse>(
       
     } catch (error) {
       console.error(`💥 Extraction failed for ${url}:`, error);
-      const domain = new URL(url).hostname.replace(/^www\./, '');
+      const domainOnly = new URL(url).hostname.replace(/^www\./, '');
       
       return {
         status: "limited",
         title: "Content Extraction Failed",
         byline: null,
-        content: `Failed to extract content from ${domain}. This site may have strong anti-bot protection.`,
-        text: `Failed to extract content from ${domain}. This site may have strong anti-bot protection.`,
-        site: domain,
+        content: `Failed to extract content from ${domainOnly}. This site may have strong anti-bot protection.`,
+        text: `Failed to extract content from ${domainOnly}. This site may have strong anti-bot protection.`,
+        site: domainOnly,
         estReadMin: 1,
         reason: "extraction_failed"
       };
