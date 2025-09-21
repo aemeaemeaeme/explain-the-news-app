@@ -5,7 +5,7 @@ export default function Footer() {
   const currentYear = new Date().getFullYear();
   
   return (
-    <footer className="bg-[#0B1B2B] text-white">
+    <footer className="bg-gray-800 text-white">
       <div className="max-w-6xl mx-auto px-4 py-12">
         {/* First row: Brand and value props */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 pb-8 border-b border-gray-700">
