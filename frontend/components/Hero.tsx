@@ -72,11 +72,12 @@ export default function Hero() {
   return (
     <section className="relative py-24 px-4 bg-[#F7F7F7]">
       <div className="relative max-w-5xl mx-auto text-center">
-        <h1 className="headline-font text-5xl md:text-7xl mb-6 leading-tight">
-          <span style={{ color: 'var(--ink)', fontWeight: 'bold' }}>See the Story,</span>
-          <br />
-          <span style={{ color: 'var(--sage)', fontWeight: 'bold' }}>Not the Spin</span>
-        </h1>
+        <h1 className="display-serif text-5xl md:text-7xl mb-6 leading-tight">
+  <span style={{ color: 'var(--ink)' }}>See the Story,</span>
+  <br />
+  <span style={{ color: 'var(--sage)' }}>Not the Spin</span>
+</h1>
+
 
         <p className="text-xl mb-12 max-w-3xl mx-auto leading-relaxed" style={{ color: 'var(--gray-600)' }}>
           Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key points and sentiment so you see the whole picture.
