@@ -31,7 +31,7 @@ export default function ArticlePage() {
 
   if (isLoading || isFetching) {
     return (
-      <div className="min-h-screen bg-[#F7F5F2] font-['Inter',system-ui,sans-serif]">
+      <div className="min-h-screen bg-[#F7F7F7] font-['Inter',system-ui,sans-serif]">
         <Header />
         <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
           <LoadingSpinner />
@@ -42,7 +42,7 @@ export default function ArticlePage() {
 
   if (error || !article) {
     return (
-      <div className="min-h-screen bg-[#F7F5F2] font-['Inter',system-ui,sans-serif]">
+      <div className="min-h-screen bg-[#F7F7F7] font-['Inter',system-ui,sans-serif]">
         <Header />
         <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
           <ErrorMessage
@@ -55,7 +55,7 @@ export default function ArticlePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F5F2] font-['Inter',system-ui,sans-serif]">
+    <div className="min-h-screen bg-[#F7F7F7] font-['Inter',system-ui,sans-serif]">
       {/* Subtle grid background */}
       <div 
         className="fixed inset-0 opacity-10 pointer-events-none"
@@ -65,13 +65,13 @@ export default function ArticlePage() {
               0deg,
               transparent,
               transparent 39px,
-              #A3B18A 40px
+              #8FA573 40px
             ),
             repeating-linear-gradient(
               90deg,
               transparent,
               transparent 39px,
-              #A3B18A 40px
+              #8FA573 40px
             )
           `,
         }}

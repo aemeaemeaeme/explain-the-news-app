@@ -1,4 +1,4 @@
-import { Brain, BarChart3, Users, Clock, Shield, Zap } from 'lucide-react';
+import { Brain, BarChart3, Users, Clock, Shield, Globe } from 'lucide-react';
 
 export default function Features() {
   const features = [
@@ -28,17 +28,17 @@ export default function Features() {
       description: "All analyses auto-delete after 24 hours. No tracking, no permanent storage, no user accounts required."
     },
     {
-      icon: Zap,
+      icon: Globe,
       title: "Works Everywhere",
       description: "Compatible with most major news sites and publications. Simply paste any article URL to get started."
     }
   ];
 
   return (
-    <section className="py-20 px-4 bg-white">
+    <section id="how-it-works" className="py-20 px-4 bg-white">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 font-['Inter',system-ui,sans-serif]">
+          <h2 className="text-4xl md:text-5xl font-bold text-[#2C3E50] mb-6 font-['Inter',system-ui,sans-serif]">
             Everything You Need
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto font-['Inter',system-ui,sans-serif]">
@@ -50,12 +50,12 @@ export default function Features() {
           {features.map((feature, index) => (
             <div 
               key={index} 
-              className="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow duration-300"
+              className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow duration-300"
             >
-              <div className="w-12 h-12 bg-[#A3B18A] bg-opacity-10 rounded-xl flex items-center justify-center mb-6">
-                <feature.icon className="h-6 w-6 text-[#A3B18A]" />
+              <div className="w-12 h-12 bg-[#5C8CF0] bg-opacity-10 rounded-xl flex items-center justify-center mb-6">
+                <feature.icon className="h-6 w-6 text-[#5C8CF0]" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3 font-['Inter',system-ui,sans-serif]">
+              <h3 className="text-xl font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">
                 {feature.title}
               </h3>
               <p className="text-gray-600 leading-relaxed font-['Inter',system-ui,sans-serif]">

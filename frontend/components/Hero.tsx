@@ -57,7 +57,7 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative py-24 px-4 bg-[#F7F5F2]">
+    <section className="relative py-24 px-4 bg-[#F7F7F7]">
       {/* Subtle grid background */}
       <div 
         className="absolute inset-0 opacity-20"
@@ -67,33 +67,26 @@ export default function Hero() {
               0deg,
               transparent,
               transparent 39px,
-              #A3B18A 40px
+              #8FA573 40px
             ),
             repeating-linear-gradient(
               90deg,
               transparent,
               transparent 39px,
-              #A3B18A 40px
+              #8FA573 40px
             )
           `,
         }}
       />
       
       <div className="relative max-w-5xl mx-auto text-center">
-        <div className="flex justify-center mb-8">
-          <div className="p-4 bg-white rounded-full shadow-lg">
-            <Newspaper className="h-12 w-12 text-[#A3B18A]" />
-          </div>
-        </div>
-
-        <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight font-['Inter',system-ui,sans-serif]">
-          Understand News
-          <span className="block text-[#A3B18A]">In Seconds</span>
+        <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight font-['Inter',system-ui,sans-serif]">
+          <span className="text-[#2C3E50]">See the Story,</span>
+          <span className="block text-[#8FA573]">Not the Spin.</span>
         </h1>
 
         <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed font-['Inter',system-ui,sans-serif]">
-          Paste any news article and get instant AI-powered summaries, bias analysis,
-          multiple perspectives, and key insights. Perfect for staying informed without the overwhelm.
+          Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key insights, and sentiment—so you see the whole picture.
         </p>
 
         <form onSubmit={handleSubmit} className="max-w-2xl mx-auto mb-12">
@@ -103,13 +96,21 @@ export default function Hero() {
               placeholder="Paste a news article URL here..."
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="flex-1 h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 focus:border-[#A3B18A] bg-white font-['Inter',system-ui,sans-serif]"
-              disabled={processUrlMutation.isPending}
+              className="flex-1 h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 focus:border-[#8FA573] bg-white font-['Inter',system-ui,sans-serif]"
             />
             <Button
               type="submit"
-              disabled={!url.trim() || processUrlMutation.isPending}
-              className="h-14 px-8 bg-[#A3B18A] hover:bg-[#8fa573] text-white font-semibold rounded-2xl font-['Inter',system-ui,sans-serif]"
+              disabled={(() => {
+                if (processUrlMutation.isPending) return true;
+                if (!url.trim()) return true;
+                try {
+                  new URL(url);
+                  return false;
+                } catch {
+                  return true;
+                }
+              })()}
+              className="h-14 px-8 bg-[#8FA573] hover:bg-[#7A9162] text-white font-semibold rounded-2xl font-['Inter',system-ui,sans-serif]"
             >
               {processUrlMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -120,20 +121,32 @@ export default function Hero() {
           </div>
         </form>
 
-        <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-500 font-['Inter',system-ui,sans-serif]">
-          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm">
-            <div className="w-2 h-2 bg-[#A3B18A] rounded-full"></div>
-            Neutral summaries
+        <div className="flex flex-wrap justify-center gap-3 text-sm text-gray-600 font-['Inter',system-ui,sans-serif] mb-4">
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
+            <div className="w-2 h-2 bg-[#8FA573] rounded-full"></div>
+            Bias-aware, balanced summaries
           </div>
-          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm">
-            <div className="w-2 h-2 bg-[#F4C7C3] rounded-full"></div>
-            Auto-delete after 24h
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
+            <div className="w-2 h-2 bg-[#5C8CF0] rounded-full"></div>
+            Multiple perspectives
           </div>
-          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm">
-            <div className="w-2 h-2 bg-[#FFE5B4] rounded-full"></div>
-            Works on most sites
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
+            <div className="w-2 h-2 bg-[#8FA573] rounded-full"></div>
+            Key quotes & sources
+          </div>
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
+            <div className="w-2 h-2 bg-[#5C8CF0] rounded-full"></div>
+            Sentiment & common ground
+          </div>
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
+            <div className="w-2 h-2 bg-[#8FA573] rounded-full"></div>
+            Auto-deletes after 24h · No signup
           </div>
         </div>
+
+        <p className="text-sm text-gray-500 font-['Inter',system-ui,sans-serif]">
+          Works on most sites
+        </p>
       </div>
     </section>
   );

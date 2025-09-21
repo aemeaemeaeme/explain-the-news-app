@@ -4,7 +4,7 @@ import db from "../db";
 // ---------------- Types returned to the frontend ----------------
 export interface Article {
   meta: { title: string; domain: string; byline: string; published_at: string };
-  tldr: { headline: string; subhead: string };
+  tldr: { headline: string; subhead: string; paragraphs: string[] };
   eli5: { summary: string; analogy?: string };
   why_it_matters: string[];
   key_points: Array<{ text: string; tag: "fact" | "timeline" | "stakeholders" | "numbers" }>;
@@ -88,7 +88,7 @@ export const getArticle = api<GetArticleRequest, GetArticleResponse>(
     const rows = await db.query/*sql*/`
       SELECT
         id, url, title, content,
-        tldr_headline, tldr_subhead,
+        tldr_headline, tldr_subhead, tldr_paragraphs,
         eli5_summary, eli5_analogy,
         why_it_matters, key_points,
         bias_left, bias_center, bias_right, bias_confidence, bias_rationale,
@@ -118,6 +118,7 @@ export const getArticle = api<GetArticleRequest, GetArticleResponse>(
     const common = safeParseArray<string>(r.common_ground);
     const glossaryRaw = safeParseArray<any>(r.glossary);
     const followups = safeParseArray<string>(r.follow_up_questions);
+    const tldrParagraphs = safeParseArray<string>(r.tldr_paragraphs);
 
     // 3) Build Article object with guards/defaults (and bias normalization)
     const nb = normalizeBias(r.bias_left, r.bias_center, r.bias_right);
@@ -132,6 +133,10 @@ export const getArticle = api<GetArticleRequest, GetArticleResponse>(
       tldr: {
         headline: ensureString(r.tldr_headline, ""),
         subhead: ensureString(r.tldr_subhead, ""),
+        paragraphs: tldrParagraphs.length > 0 ? tldrParagraphs : [
+          ensureString(r.tldr_headline, ""),
+          ensureString(r.tldr_subhead, "")
+        ].filter(Boolean),
       },
       eli5: {
         summary: ensureString(r.eli5_summary, ""),

@@ -16,7 +16,7 @@ type KeyTag = "fact" | "timeline" | "stakeholders" | "numbers";
 
 export interface ArticleAnalysis {
   meta: { title: string; domain: string; byline: string; published_at: string };
-  tldr: { headline: string; subhead: string };
+  tldr: { headline: string; subhead: string; paragraphs: string[] };
   eli5: { summary: string; analogy?: string };
   why_it_matters: string[];
   key_points: Array<{ text: string; tag: KeyTag }>;
@@ -130,7 +130,11 @@ function generateMockAnalysis(content: string, url: string): ArticleAnalysis {
     },
     tldr: { 
       headline: "We couldn't analyze this article fully.", 
-      subhead: "The content may be behind a paywall or blocked from automated analysis." 
+      subhead: "The content may be behind a paywall or blocked from automated analysis.",
+      paragraphs: [
+        "We encountered difficulties extracting the full content from this article. This typically happens when content is behind a paywall or when websites have strong anti-bot protection.",
+        "While we can't provide our usual detailed analysis, we recommend visiting the original source directly for the complete story and context."
+      ]
     },
     eli5: { 
       summary: "Sometimes websites block our reading robots. It's like trying to read a book through a locked window. We can see there's content there, but we can't get the full story.", 
@@ -223,20 +227,31 @@ async function generateAnalysis(content: string, url: string): Promise<ArticleAn
     ? `No readable text extracted. Domain: ${domain}. Please infer conservatively from metadata and URL only.`
     : content;
 
-  const systemPrompt = `You are a neutral news explainer for a consumer app. Output MUST be valid JSON per the app schema. Plain text only (no Markdown or asterisks). Emojis are allowed. Be specific and grounded in the provided article text; if info is missing, use 'unknown'. Respect lengths. Exactly two perspectives. Bias and sentiment integers must each sum to 100. Return JSON ONLY.`;
+  const systemPrompt = `You are a neutral news explainer for a consumer app. Output MUST be valid JSON per the app schema. Plain text only (no Markdown or asterisks). Emojis are allowed. Be specific and grounded in the provided article text; if info is missing, use 'unknown'. Respect all length requirements exactly. Exactly two perspectives. Bias and sentiment integers must each sum to 100 and NOT be evenly split unless truly balanced. Return JSON ONLY.`;
 
   const userPrompt = `Summarize and analyze this article for a consumer app. Follow the schema exactly.
 
+CRITICAL REQUIREMENTS:
+- tldr.paragraphs: EXACTLY 2-3 short paragraphs (2-4 sentences each)
+- eli5.summary: EXACTLY 3-6 sentences, kid-friendly tone, include optional analogy
+- why_it_matters: EXACTLY 4-6 bullets  
+- key_points: EXACTLY 5-8 bullets with tags from: fact, timeline, stakeholders, numbers
+- perspectives: EXACTLY 2 labeled blocks, each with 1-2 sentence summary + 3-5 bullets
+- common_ground: EXACTLY 3-5 bullets showing shared agreements
+- glossary: EXACTLY 4-8 clear, Gen-Z/ESL-friendly items
+- follow_up_questions: EXACTLY 3-6 specific, curiosity-driven questions
+- bias/sentiment: integers summing to 100, avoid 33/34/33 splits unless truly balanced
+
 Meta:
 Domain: ${domain}
-Byline: unknown
-Published at: unknown
+Byline: extract from text or "unknown"
+Published at: extract from text or "unknown" 
 Word count: ${wordCount}
 
 Article text:
 ${safeContent}
 
-Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhead), eli5 (summary/analogy), why_it_matters (4-5 items), key_points (6-8 with tags), perspectives (exactly 2), common_ground (2-3), glossary (5-6 ESL terms), bias (left/center/right/confidence/rationale), sentiment (positive/neutral/negative/rationale), source_mix, tone, reading_time_minutes.`;
+Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhead/paragraphs), eli5 (summary/analogy), why_it_matters, key_points, perspectives, common_ground, glossary, bias (left/center/right/confidence/rationale), sentiment (positive/neutral/negative/rationale), tone, follow_up_questions.`;
 
   let passA: any = null;
   let passB: any = null;
@@ -366,6 +381,10 @@ Return JSON with: meta (title/domain/byline/published_at), tldr (headline/subhea
     tldr: {
       headline: String(passA?.tldr?.headline || "Summary unavailable"),
       subhead: String(passA?.tldr?.subhead || "Please try another article"),
+      paragraphs: asArray<string>(passA?.tldr?.paragraphs).slice(0, 3).filter(x => x) || [
+        String(passA?.tldr?.headline || "Summary unavailable"),
+        String(passA?.tldr?.subhead || "Please try another article")
+      ],
     },
     eli5: {
       summary: String(passA?.eli5?.summary || "Analysis not available"),
@@ -440,12 +459,13 @@ export const process = api<ProcessRequest, ProcessResponse>(
     const commonJson = JSON.stringify(analysis.common_ground || []);
     const glossaryJson = JSON.stringify(analysis.glossary || []);
     const followupsJson = JSON.stringify(analysis.follow_up_questions || []);
+    const tldrParagraphsJson = JSON.stringify(analysis.tldr.paragraphs || []);
 
     try {
       const rows = await db.query/*sql*/`
         INSERT INTO articles (
           id, url, title, content,
-          tldr_headline, tldr_subhead,
+          tldr_headline, tldr_subhead, tldr_paragraphs,
           eli5_summary, eli5_analogy,
           why_it_matters, key_points,
           bias_left, bias_center, bias_right, bias_confidence, bias_rationale,
@@ -459,6 +479,7 @@ export const process = api<ProcessRequest, ProcessResponse>(
           ${extracted.text},
           ${analysis.tldr.headline},
           ${analysis.tldr.subhead},
+          ${tldrParagraphsJson},
           ${analysis.eli5.summary},
           ${analysis.eli5.analogy ?? null},
           ${whyJson},

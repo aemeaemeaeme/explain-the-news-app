@@ -1,3 +1,4 @@
+import Header from '../components/Header';
 import Hero from '../components/Hero';
 import Demo from '../components/Demo';
 import Features from '../components/Features';
@@ -7,7 +8,8 @@ import Footer from '../components/Footer';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#F7F5F2] font-['Inter',system-ui,sans-serif]">
+    <div className="min-h-screen bg-[#F7F7F7] font-['Inter',system-ui,sans-serif]">
+      <Header />
       <Hero />
       <TrustStrip />
       <Demo />

@@ -1,16 +1,20 @@
 import BiasBar from './BiasBar';
-import { Clock, Share, Eye, Handshake } from 'lucide-react';
+import { Clock, Share, Eye, Handshake, Copy, ChevronDown } from 'lucide-react';
 
 export default function Demo() {
   const demoArticle = {
     title: "Global Climate Summit Reaches Historic Agreement",
     tldr: {
       headline: "195 countries agree to reduce carbon emissions by 50% by 2030 in landmark climate deal.",
-      subhead: "The agreement includes $100 trillion in climate investments and legally binding targets for the first time since Paris."
+      paragraphs: [
+        "In a historic breakthrough, 195 countries have committed to slashing carbon emissions in half by 2030, marking the most ambitious climate agreement since the Paris Accord. The deal includes unprecedented $100 trillion in funding commitments.",
+        "Unlike previous agreements, this pact includes legally binding enforcement mechanisms and mandatory annual reviews. Developing nations will receive priority access to green technology funding and transition support.",
+        "The agreement addresses long-standing equity concerns while setting aggressive timelines that scientists say are necessary to prevent catastrophic warming beyond 1.5°C."
+      ]
     },
     eli5: {
-      summary: "Almost all countries in the world promised to pollute less to help save the planet. They want to cut pollution in half by 2030, and they're putting a lot of money into clean energy.",
-      analogy: "It's like if everyone in your neighborhood agreed to use half as much electricity and all pitched in to buy solar panels for every house! 🏠☀️"
+      summary: "Almost all countries in the world promised to pollute less to help save the planet. They want to cut pollution in half by 2030, and they're putting a lot of money into clean energy. Think of it like everyone in your neighborhood agreeing to use half as much electricity and all pitching in to buy solar panels for every house!",
+      analogy: "It's like everyone in your neighborhood agreeing to use half as much electricity and all pitching in to buy solar panels for every house! 🏠☀️"
     },
     whyMatters: [
       "First legally binding global climate agreement since Paris Accord",
@@ -65,11 +69,16 @@ export default function Demo() {
     bias: { left: 28, center: 52, right: 20, confidence: "high" },
     sentiment: { positive: 65, neutral: 25, negative: 10 },
     readingTime: 4,
-    sourceInfo: "Wire service – Reuters"
+    sourceInfo: "Wire service – Reuters",
+    followupQuestions: [
+      "What happens if countries don't meet their targets?",
+      "How will this affect gas prices and energy costs?", 
+      "Which technologies are most promising for reaching these goals?"
+    ]
   };
 
   return (
-    <section className="py-20 px-4 bg-[#F7F5F2]">
+    <section id="examples" className="py-20 px-4 bg-[#F7F7F7]">
       {/* Subtle grid background */}
       <div 
         className="absolute inset-0 opacity-10"
@@ -79,13 +88,13 @@ export default function Demo() {
               0deg,
               transparent,
               transparent 39px,
-              #A3B18A 40px
+              #8FA573 40px
             ),
             repeating-linear-gradient(
               90deg,
               transparent,
               transparent 39px,
-              #A3B18A 40px
+              #8FA573 40px
             )
           `,
         }}
@@ -93,11 +102,11 @@ export default function Demo() {
       
       <div className="relative max-w-5xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 font-['Inter',system-ui,sans-serif]">
+          <h2 className="text-4xl md:text-5xl font-bold text-[#2C3E50] mb-6 font-['Inter',system-ui,sans-serif]">
             See It In Action
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto font-['Inter',system-ui,sans-serif]">
-            Here's what you get when you analyze a news article with our AI
+            Here's what you get when you analyze a news article with us.
           </p>
         </div>
 
@@ -105,39 +114,42 @@ export default function Demo() {
           {/* Header */}
           <div className="flex items-start justify-between mb-8">
             <div className="flex-1">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2 font-['Inter',system-ui,sans-serif]">
+              <h3 className="text-2xl font-bold text-[#2C3E50] mb-2 font-['Inter',system-ui,sans-serif]">
                 {demoArticle.title}
               </h3>
               <div className="flex items-center gap-4 text-sm text-gray-500 font-['Inter',system-ui,sans-serif]">
-                <span className="flex items-center gap-1">
-                  <Eye className="h-4 w-4" />
-                  {demoArticle.sourceInfo}
-                </span>
+                <span>{demoArticle.sourceInfo}</span>
+                <span>•</span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-4 w-4" />
                   {demoArticle.readingTime} min read
                 </span>
-                <span className="px-2 py-1 bg-[#CFE8CF] text-[#2d5a2d] rounded-full text-xs">
-                  Auto-deletes after 24h
-                </span>
+                <span>•</span>
+                <span>Tone: factual</span>
               </div>
             </div>
-            <Share className="h-5 w-5 text-gray-400 cursor-pointer hover:text-gray-600" />
+            <div className="flex items-center gap-3">
+              <Copy className="h-5 w-5 text-gray-400 cursor-pointer hover:text-[#8FA573] transition-colors" />
+              <Share className="h-5 w-5 text-gray-400 cursor-pointer hover:text-[#8FA573] transition-colors" />
+            </div>
           </div>
 
           <div className="space-y-8">
             {/* TL;DR */}
             <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3 font-['Inter',system-ui,sans-serif]">TL;DR</h4>
-              <p className="text-gray-700 text-lg mb-2 font-['Inter',system-ui,sans-serif]">{demoArticle.tldr.headline}</p>
-              <p className="text-gray-600 font-['Inter',system-ui,sans-serif]">{demoArticle.tldr.subhead}</p>
+              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">TL;DR</h4>
+              <div className="space-y-3">
+                {demoArticle.tldr.paragraphs.map((paragraph, index) => (
+                  <p key={index} className="text-gray-700 font-['Inter',system-ui,sans-serif]">{paragraph}</p>
+                ))}
+              </div>
             </div>
 
             {/* ELI5 */}
             <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3 font-['Inter',system-ui,sans-serif]">Explain Like I'm 5</h4>
+              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Explain Like I'm 5</h4>
               <p className="text-gray-700 mb-3 font-['Inter',system-ui,sans-serif]">{demoArticle.eli5.summary}</p>
-              <div className="bg-[#FFE5B4] bg-opacity-30 p-4 rounded-xl border border-[#FFE5B4]">
+              <div className="bg-[#E6F0FF] p-4 rounded-xl border border-[#5C8CF0]/20">
                 <p className="text-gray-700 font-['Inter',system-ui,sans-serif]">
                   <strong>Analogy:</strong> {demoArticle.eli5.analogy}
                 </p>
@@ -146,11 +158,11 @@ export default function Demo() {
 
             {/* Why It Matters */}
             <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3 font-['Inter',system-ui,sans-serif]">Why It Matters</h4>
+              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Why It Matters</h4>
               <ul className="space-y-2">
                 {demoArticle.whyMatters.map((point, index) => (
                   <li key={index} className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-[#A3B18A] rounded-full mt-2 flex-shrink-0"></div>
+                    <div className="w-2 h-2 bg-[#8FA573] rounded-full mt-2 flex-shrink-0"></div>
                     <span className="text-gray-700 font-['Inter',system-ui,sans-serif]">{point}</span>
                   </li>
                 ))}
@@ -159,13 +171,13 @@ export default function Demo() {
 
             {/* Key Points */}
             <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3 font-['Inter',system-ui,sans-serif]">Key Points</h4>
+              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Key Points</h4>
               <div className="grid gap-3">
                 {demoArticle.keyPoints.map((point, index) => (
                   <div key={index} className="flex items-start gap-3">
                     <span className={`px-2 py-1 text-xs rounded-full flex-shrink-0 ${
-                      point.tag === 'fact' ? 'bg-blue-100 text-blue-700' :
-                      point.tag === 'numbers' ? 'bg-green-100 text-green-700' :
+                      point.tag === 'fact' ? 'bg-[#E6F0FF] text-[#5C8CF0]' :
+                      point.tag === 'numbers' ? 'bg-[#E8F5E8] text-[#8FA573]' :
                       point.tag === 'timeline' ? 'bg-orange-100 text-orange-700' :
                       'bg-purple-100 text-purple-700'
                     }`}>
@@ -179,7 +191,7 @@ export default function Demo() {
 
             {/* Bias Analysis */}
             <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3 font-['Inter',system-ui,sans-serif]">Bias Analysis</h4>
+              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Bias Analysis</h4>
               <BiasBar 
                 left={demoArticle.bias.left}
                 center={demoArticle.bias.center}
@@ -190,10 +202,10 @@ export default function Demo() {
 
             {/* Sentiment Analysis */}
             <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3 font-['Inter',system-ui,sans-serif]">Sentiment Analysis</h4>
+              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Sentiment Analysis</h4>
               <div className="flex rounded-lg overflow-hidden h-8 mb-2">
                 <div 
-                  className="bg-green-500 flex items-center justify-center text-white text-sm font-medium"
+                  className="bg-[#8FA573] flex items-center justify-center text-white text-sm font-medium"
                   style={{ width: `${demoArticle.sentiment.positive}%` }}
                 >
                   {demoArticle.sentiment.positive > 15 && `${demoArticle.sentiment.positive}%`}
@@ -205,7 +217,7 @@ export default function Demo() {
                   {demoArticle.sentiment.neutral > 15 && `${demoArticle.sentiment.neutral}%`}
                 </div>
                 <div 
-                  className="bg-red-500 flex items-center justify-center text-white text-sm font-medium"
+                  className="bg-[#ef4444] flex items-center justify-center text-white text-sm font-medium"
                   style={{ width: `${demoArticle.sentiment.negative}%` }}
                 >
                   {demoArticle.sentiment.negative > 15 && `${demoArticle.sentiment.negative}%`}
@@ -220,16 +232,16 @@ export default function Demo() {
 
             {/* Perspectives */}
             <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3 font-['Inter',system-ui,sans-serif]">Different Perspectives</h4>
+              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Different Perspectives</h4>
               <div className="grid md:grid-cols-2 gap-6">
                 {demoArticle.perspectives.map((perspective, index) => (
-                  <div key={index} className="bg-gray-50 p-6 rounded-xl">
-                    <h5 className="font-semibold text-gray-900 mb-2 font-['Inter',system-ui,sans-serif]">{perspective.label}</h5>
+                  <div key={index} className="bg-[#E6F0FF] p-6 rounded-xl border border-[#5C8CF0]/20">
+                    <h5 className="font-semibold text-[#2C3E50] mb-2 font-['Inter',system-ui,sans-serif]">{perspective.label}</h5>
                     <p className="text-gray-700 mb-3 font-['Inter',system-ui,sans-serif]">{perspective.summary}</p>
                     <ul className="space-y-2">
                       {perspective.bullets.map((bullet, i) => (
                         <li key={i} className="flex items-start gap-2">
-                          <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></div>
+                          <div className="w-1.5 h-1.5 bg-[#5C8CF0] rounded-full mt-2 flex-shrink-0"></div>
                           <span className="text-gray-600 text-sm font-['Inter',system-ui,sans-serif]">{bullet}</span>
                         </li>
                       ))}
@@ -241,14 +253,14 @@ export default function Demo() {
 
             {/* Common Ground */}
             <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 font-['Inter',system-ui,sans-serif]">
-                <Handshake className="h-5 w-5 text-[#A3B18A]" />
+              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 flex items-center gap-2 font-['Inter',system-ui,sans-serif]">
+                <Handshake className="h-5 w-5 text-[#8FA573]" />
                 Common Ground
               </h4>
               <ul className="space-y-2">
                 {demoArticle.commonGround.map((point, index) => (
                   <li key={index} className="flex items-start gap-3">
-                    <div className="w-2 h-2 bg-[#A3B18A] rounded-full mt-2 flex-shrink-0"></div>
+                    <div className="w-2 h-2 bg-[#8FA573] rounded-full mt-2 flex-shrink-0"></div>
                     <span className="text-gray-700 font-['Inter',system-ui,sans-serif]">{point}</span>
                   </li>
                 ))}
@@ -257,12 +269,12 @@ export default function Demo() {
 
             {/* Glossary */}
             <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-3 font-['Inter',system-ui,sans-serif]">Glossary</h4>
+              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Glossary</h4>
               <div className="flex flex-wrap gap-2">
                 {demoArticle.glossary.map((item, index) => (
                   <span
                     key={index}
-                    className="px-3 py-1 bg-[#CFE8CF] text-[#2d5a2d] rounded-full text-sm cursor-help font-['Inter',system-ui,sans-serif]"
+                    className="px-3 py-2 bg-[#E8F5E8] text-[#8FA573] rounded-full text-sm cursor-help font-['Inter',system-ui,sans-serif] border border-[#8FA573]/20"
                     title={item.definition}
                   >
                     {item.term}
@@ -270,8 +282,25 @@ export default function Demo() {
                 ))}
               </div>
             </div>
+
+            {/* Follow-up Questions */}
+            <div>
+              <h4 className="text-lg font-semibold text-[#2C3E50] mb-3 font-['Inter',system-ui,sans-serif]">Follow-up Questions</h4>
+              <div className="space-y-3">
+                {demoArticle.followupQuestions.map((question, index) => (
+                  <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
+                    <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-700 font-['Inter',system-ui,sans-serif]">{question}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
+        
+        <p className="text-center text-gray-500 mt-8 font-['Inter',system-ui,sans-serif]">
+          Auto-deletes after 24h · No accounts · No tracking
+        </p>
       </div>
     </section>
   );
