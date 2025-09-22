@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+// frontend/components/Hero.tsx
+import { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -27,9 +28,25 @@ export default function Hero() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [resetTime, setResetTime] = useState<number | undefined>(undefined);
+  const [status, setStatus] = useState<string>('');
+  const mounted = useRef(false);
+
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+
+  // Prove the backend client exists
+  useEffect(() => {
+    mounted.current = true;
+    // eslint-disable-next-line no-console
+    console.log('[Hero] backend client:', {
+      hasBackend: !!backend,
+      hasNews: !!(backend as any)?.news,
+      hasProcess: typeof (backend as any)?.news?.process === 'function',
+      backendKeys: Object.keys(backend || {}),
+    });
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     if ((location.state as any)?.showPasteModal) {
@@ -40,19 +57,37 @@ export default function Hero() {
 
   const processUrlMutation = useMutation({
     mutationFn: async (rawUrl: string) => {
+      setStatus('Validating URL…');
       const safe = normalizeUrl(rawUrl);
       if (!safe) throw new Error('Please enter a valid news article URL (http/https).');
-      // ✅ CALL THE REAL BACKEND ENDPOINT
-      const res = await backend.news.process({ url: safe });
+
+      // Sanity: do we even have the generated client method?
+      const fn = (backend as any)?.news?.process;
+      if (typeof fn !== 'function') {
+        // eslint-disable-next-line no-console
+        console.error('[Hero] backend.news.process is not a function. backend.news =', (backend as any)?.news);
+        throw new Error('Frontend is not linked to backend client (backend.news.process missing).');
+      }
+
+      setStatus('Calling backend.news.process…');
+      // eslint-disable-next-line no-console
+      console.log('[Hero] POST news.process:', { url: safe });
+
+      const res = await fn({ url: safe }); // Encore client call
+      // eslint-disable-next-line no-console
+      console.log('[Hero] news.process response:', res);
       return res;
     },
     onSuccess: (res: any) => {
+      if (!mounted.current) return;
       if (res?.rateLimited) {
         setResetTime(res.resetTime);
         setShowPaywall(true);
+        setStatus('Rate limited — showing paywall modal.');
         return;
       }
       if (!res?.success || !res?.id) {
+        setStatus(`Backend returned error: ${res?.error || 'unknown error'}`);
         toast({
           title: 'Could not analyze',
           description: res?.error || 'Please try another URL.',
@@ -60,31 +95,41 @@ export default function Hero() {
         });
         return;
       }
+      setStatus(`Success. Navigating to /article/${res.id}`);
       navigate(`/article/${res.id}`);
     },
     onError: (err: any) => {
+      const msg = String(err?.message || err || 'Unknown error');
+      // eslint-disable-next-line no-console
+      console.error('[Hero] Error processing URL:', err);
+      setStatus(`Error: ${msg}`);
       toast({
         title: 'Error processing URL',
-        description: String(err?.message || 'Network error. Please try again.'),
+        description: msg.includes('Failed to fetch')
+          ? 'Network / CORS / dev proxy issue. Check browser console → Network tab.'
+          : msg,
         variant: 'destructive',
       });
+      // Give a loud fallback so it’s obvious something failed
+      alert(`Error processing URL:\n${msg}`);
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim()) {
+    const raw = url.trim();
+    if (!raw) {
       toast({ title: 'Missing URL', description: 'Paste a news article URL to analyze.', variant: 'destructive' });
       return;
     }
-    processUrlMutation.mutate(url);
+    setStatus('Submitting…');
+    processUrlMutation.mutate(raw);
   };
 
-  const handlePasteTextSubmit = (pastedText: string) => {
-    // Optional: wire a backend endpoint for raw text later
+  const handlePasteTextSubmit = (_pastedText: string) => {
     toast({
-      title: 'Paste text not enabled',
-      description: 'URL analysis works now. Add a backend endpoint for pasted text when ready.',
+      title: 'Paste text not enabled yet',
+      description: 'URL analysis is active. We can wire a pasted-text endpoint next.',
     });
     setShowPasteModal(false);
   };
@@ -102,7 +147,7 @@ export default function Hero() {
           Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key points and sentiment so you see the whole picture.
         </p>
 
-        <form onSubmit={handleSubmit} className="relative z-10 max-w-2xl mx-auto mb-8">
+        <form onSubmit={handleSubmit} className="relative z-10 max-w-2xl mx-auto mb-3">
           <div className="flex gap-3">
             <div className="flex-1 relative">
               <Input
@@ -125,11 +170,21 @@ export default function Hero() {
               type="submit"
               disabled={!url.trim() || processUrlMutation.isPending}
               className="btn-sage h-14 px-8 font-semibold focus-ring"
+              onClick={(e) => {
+                // Also wire click to be extra sure the submit fires
+                // eslint-disable-next-line no-console
+                console.log('[Hero] Explain It clicked');
+              }}
             >
               {processUrlMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Explain It'}
             </Button>
           </div>
         </form>
+
+        {/* Tiny status line to prove something is happening */}
+        <div className="min-h-[24px] mb-10 text-sm text-gray-500">
+          {status && <span>Status: {status}</span>}
+        </div>
 
         <div className="max-w-2xl mx-auto mb-12">
           <div className="flex items-center justify-center gap-4 mb-4">
