@@ -1,3 +1,4 @@
+// frontend/components/Hero.tsx
 import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -9,42 +10,75 @@ import PaywallModal from './PaywallModal';
 import PasteTextModal from './PasteTextModal';
 import backend from '~backend/client';
 
+function normalizeUrl(raw: string): string {
+  let u = (raw || '').trim();
+  if (!u) return '';
+  // If user pasted without scheme, assume https
+  if (!/^https?:\/\//i.test(u)) u = `https://${u}`;
+  // Still invalid? bail.
+  try {
+    // will throw if invalid
+    const parsed = new URL(u);
+    // Only allow http(s)
+    if (!/^https?:$/i.test(parsed.protocol)) return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
 export default function Hero() {
   const [url, setUrl] = useState('');
   const [showPaywall, setShowPaywall] = useState(false);
   const [showPasteModal, setShowPasteModal] = useState(false);
-  const [resetTime, setResetTime] = useState<number>();
+  const [resetTime, setResetTime] = useState<number | undefined>(undefined);
+
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (location.state?.showPasteModal) {
+    if ((location.state as any)?.showPasteModal) {
       setShowPasteModal(true);
       navigate('/', { replace: true });
     }
   }, [location.state, navigate]);
 
+  // ⬇️ This mutation calls YOUR backend (Encore client), not the article URL.
   const processUrlMutation = useMutation({
-    mutationFn: async ({ url, pastedText }: { url?: string; pastedText?: string }) => {
-      return backend.news.explain({ url: url || '', pastedText });
-    },
-    onSuccess: (response) => {
-      if (response.status === 'limited' && response.meta.source !== 'user_input') {
-        toast({
-          title: 'Limited Analysis',
-          description: 'Access restricted — analysis based on metadata/neutral context.',
-          variant: 'default',
-        });
+    mutationFn: async (rawUrl: string) => {
+      const safe = normalizeUrl(rawUrl);
+      if (!safe) {
+        throw new Error('Please enter a valid news article URL (http/https).');
       }
-      navigate('/article/temp', { state: { analysis: response } });
-      setShowPasteModal(false);
+      // IMPORTANT: use backend.news.process — this avoids CORS and “Failed to fetch”
+      const res = await backend.news.process({ url: safe });
+      return res;
     },
-    onError: (error: any) => {
-      console.error('Error processing URL:', error);
+    onSuccess: (res: any) => {
+      // Handle rate limit response from backend
+      if (res?.rateLimited) {
+        setResetTime(res.resetTime);
+        setShowPaywall(true);
+        return;
+      }
+      if (!res?.success || !res?.id) {
+        toast({
+          title: 'Could not analyze',
+          description: res?.error || 'Please try another URL.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      // Navigate to the stored article
+      navigate(`/article/${res.id}`);
+    },
+    onError: (err: any) => {
+      // This is where browsers used to throw “TypeError: Failed to fetch”
+      // because the app tried to fetch the third-party URL directly.
       toast({
-        title: 'Connection Error',
-        description: "Can't reach the server. Check your connection and try again.",
+        title: 'Error processing URL',
+        description: String(err?.message || 'Network error. Please try again.'),
         variant: 'destructive',
       });
     },
@@ -52,32 +86,37 @@ export default function Hero() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim()) return;
-    try {
-      new URL(url);
-      processUrlMutation.mutate({ url });
-    } catch {
-      toast({
-        title: 'Invalid URL',
-        description: 'Please enter a valid news article URL.',
-        variant: 'destructive',
-      });
+    if (!url.trim()) {
+      toast({ title: 'Missing URL', description: 'Paste a news article URL to analyze.', variant: 'destructive' });
+      return;
     }
+    processUrlMutation.mutate(url);
   };
 
+  // Optional: keep the "Paste Text" flow if you have a backend endpoint for raw text.
+  // If you do not, we’ll just show a toast for now.
   const handlePasteTextSubmit = (pastedText: string) => {
-    processUrlMutation.mutate({ pastedText });
+    if (!pastedText.trim()) {
+      toast({ title: 'No text provided', description: 'Paste the article text to analyze.', variant: 'destructive' });
+      return;
+    }
+    // If you later add a backend endpoint (e.g., backend.news.processText),
+    // call it here and navigate to /article/temp with the response.
+    toast({
+      title: 'Paste text not enabled (yet)',
+      description: 'URL analysis works now. Add a backend endpoint for pasted text when ready.',
+    });
+    setShowPasteModal(false);
   };
 
   return (
     <section className="relative py-24 px-4 bg-[#F7F7F7]">
       <div className="relative max-w-5xl mx-auto text-center">
         <h1 className="display-serif text-5xl md:text-7xl mb-6 leading-tight">
-  <span style={{ color: 'var(--ink)' }}>See the Story,</span>
-  <br />
-  <span style={{ color: 'var(--sage)' }}>Not the Spin</span>
-</h1>
-
+          <span style={{ color: 'var(--ink)' }}>See the Story,</span>
+          <br />
+          <span style={{ color: 'var(--sage)' }}>Not the Spin</span>
+        </h1>
 
         <p className="text-xl mb-12 max-w-3xl mx-auto leading-relaxed" style={{ color: 'var(--gray-600)' }}>
           Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key points and sentiment so you see the whole picture.
