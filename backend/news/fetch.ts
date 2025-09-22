@@ -146,4 +146,193 @@ function simpleReadability(html: string) {
 
   const candidates = [
     /<article[^>]*>([\s\S]*?)<\/article>/i,
-    /<div[^>]*class="[^"]*(?:article-content
+    /<div[^>]*class="[^"]*(?:article-content|story-body|entry-content|post-content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<main[^>]*>([\s\S]*?)<\/main>/i,
+  ];
+
+  let content = "";
+  for (const rx of candidates) {
+    const m = noJunk.match(rx);
+    if (m?.[1] && m[1].length > 400) { content = m[1]; break; }
+  }
+  if (!content) content = noJunk;
+
+  const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return { content, textContent };
+}
+
+/** AMP helpers, JSON-LD, OG (kept, improved slightly) */
+function findAmpUrls(html: string, baseUrl: string): string[] {
+  const out: string[] = [];
+  const relAmp = html.match(/<link[^>]*rel=["']amphtml["'][^>]*href=["']([^"']+)["']/i)?.[1];
+  if (relAmp) out.push(new URL(relAmp, baseUrl).href);
+
+  const u = new URL(baseUrl);
+  const variants = [
+    `${u.origin}${u.pathname.replace(/\/$/, "")}/amp`,
+    `${u.origin}${u.pathname.replace(/\/$/, "")}/amp.html`,
+    `${u.origin}${u.pathname.replace(/\/$/, "")}?amp=1`,
+    `${u.origin}/amp${u.pathname}`,
+  ];
+  for (const v of variants) if (!out.includes(v)) out.push(v);
+  return out;
+}
+
+function extractJsonLd(html: string): string {
+  const tags = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  if (!tags) return "";
+  for (const t of tags) {
+    try {
+      const json = t.replace(/^<script[^>]*>/i, "").replace(/<\/script>$/i, "");
+      const data = JSON.parse(json);
+      const arr = Array.isArray(data) ? data : [data];
+      for (const item of arr) {
+        if (item["@type"] === "NewsArticle" || item["@type"] === "Article") {
+          if (typeof item.articleBody === "string") return item.articleBody;
+          if (typeof item.text === "string") return item.text;
+          if (Array.isArray(item.paragraph)) return item.paragraph.join("\n\n");
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  return "";
+}
+
+function extractOpenGraphContent(html: string): string {
+  const ogDesc = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i)?.[1];
+  const desc = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i)?.[1];
+  const firstParas = (html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [])
+    .slice(0, 6)
+    .map(p => p.replace(/<[^>]+>/g, "").trim())
+    .filter(p => p.length > 20)
+    .join("\n\n");
+
+  return [ogDesc, desc, firstParas].filter(Boolean).join("\n\n").trim();
+}
+
+/** Domain adapters (you had good ones — keep as last-ditch fallbacks) */
+function getDomainAdapter(domain: string) {
+  const adapters: Record<string, (html: string) => { content: string; textContent: string }> = {
+    "cnn.com": (html) => {
+      const matches = html.match(/<div[^>]*class="[^"]*zn-body__paragraph[^"]*"[^>]*>([\s\S]*?)<\/div>/gi);
+      if (matches && matches.length > 3) {
+        const content = matches.join("\n");
+        const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (textContent.length > 500) return { content, textContent };
+      }
+      return simpleReadability(html);
+    },
+    "reuters.com": (html) => {
+      const matches = html.match(/<p[^>]*data-testid=["']paragraph-\d+["'][^>]*>([\s\S]*?)<\/p>/gi);
+      if (matches && matches.length > 2) {
+        const content = matches.join("\n");
+        const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (textContent.length > 500) return { content, textContent };
+      }
+      return simpleReadability(html);
+    },
+    "apnews.com": (html) => {
+      const m = html.match(/<div[^>]*class="[^"]*RichTextStoryBody[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+      if (m?.[1]) {
+        const content = m[1];
+        const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (textContent.length > 500) return { content, textContent };
+      }
+      return simpleReadability(html);
+    },
+    "foxnews.com": (html) => {
+      const blocks = html.match(/<div[^>]*class="[^"]*article-body[^"]*"[^>]*>([\s\S]*?)<\/div>/gi)
+        || html.match(/<p[^>]*class="[^"]*article-body[^"]*"[^>]*>([\s\S]*?)<\/p>/gi);
+      if (blocks && blocks.length > 3) {
+        const content = Array.isArray(blocks) ? blocks.join("\n") : String(blocks);
+        const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (textContent.length > 500) return { content, textContent };
+      }
+      return simpleReadability(html);
+    },
+    "politico.com": (html) => {
+      const m = html.match(/<div[^>]*class="[^"]*(?:story-text|article-content|content-group)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+      if (m?.[1]) {
+        const content = m[1];
+        const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (textContent.length > 600) return { content, textContent };
+      }
+      return simpleReadability(html);
+    },
+  };
+  return adapters[domain] || simpleReadability;
+}
+
+/** === Main Encore API === */
+export const fetchArticle = api<FetchArticleRequest, FetchArticleResponse>(
+  { expose: true, method: "POST", path: "/fetch" },
+  async ({ url }) => {
+    console.log(`🔍 Starting extraction for: ${url}`);
+    try { new URL(url); } catch { throw new Error("Invalid URL provided"); }
+
+    try {
+      // 1) Fetch HTML (robust)
+      const { html, finalUrl } = await fetchWithRetries(url);
+      const { title, byline, domain } = extractMetadata(html, finalUrl);
+
+      // 2) Primary: JSDOM + Readability
+      let parsed = parseWithReadability(html, finalUrl);
+      if (parsed.textContent && parsed.textContent.length >= 900) {
+        console.log(`✅ Readability success: ${parsed.textContent.length} chars`);
+        const est = Math.max(1, Math.round(parsed.textContent.split(/\s+/).length / 225));
+        return { status: "ok", title, byline, content: parsed.content, text: parsed.textContent, site: domain, estReadMin: est };
+      }
+
+      // 3) Domain adapter (fallback)
+      const adapter = getDomainAdapter(domain);
+      parsed = adapter(html);
+      if (parsed.textContent && parsed.textContent.length >= 900) {
+        console.log(`✅ Domain adapter success: ${parsed.textContent.length} chars`);
+        const est = Math.max(1, Math.round(parsed.textContent.split(/\s+/).length / 225));
+        return { status: "ok", title, byline, content: parsed.content, text: parsed.textContent, site: domain, estReadMin: est };
+      }
+
+      // 4) AMP variants
+      for (const ampUrl of findAmpUrls(html, finalUrl)) {
+        try {
+          const { html: ampHtml } = await fetchWithRetries(ampUrl, 1);
+          const ampParsed = parseWithReadability(ampHtml, ampUrl);
+          if (ampParsed.textContent.length >= 800) {
+            console.log(`✅ AMP success: ${ampParsed.textContent.length} chars`);
+            const est = Math.max(1, Math.round(ampParsed.textContent.split(/\s+/).length / 225));
+            return { status: "ok", title, byline, content: ampParsed.content, text: ampParsed.textContent, site: domain, estReadMin: est };
+          }
+        } catch (e) {
+          console.log("AMP fetch failed:", e);
+        }
+      }
+
+      // 5) JSON-LD body
+      const jsonLd = extractJsonLd(html);
+      if (jsonLd && jsonLd.length >= 700) {
+        console.log(`✅ JSON-LD success: ${jsonLd.length} chars`);
+        const est = Math.max(1, Math.round(jsonLd.split(/\s+/).length / 225));
+        return { status: "ok", title, byline, content: jsonLd, text: jsonLd, site: domain, estReadMin: est };
+      }
+
+      // 6) OpenGraph/Description fallback
+      const og = extractOpenGraphContent(html);
+      if (og && og.length >= 300) {
+        console.log(`⚠️ Limited content via OG/desc: ${og.length} chars`);
+        const est = Math.max(1, Math.round(og.split(/\s+/).length / 225));
+        return { status: "limited", title, byline, content: og, text: og, site: domain, estReadMin: est, reason: "limited_content" };
+      }
+
+      // 7) Total fallback
+      console.log("❌ Extraction fell through all strategies");
+      const msg = `Content extraction limited for ${domain}. ${title}`;
+      return { status: "limited", title, byline, content: msg, text: msg, site: domain, estReadMin: 1, reason: "site_protection" };
+
+    } catch (err) {
+      console.error("💥 Extraction error:", err);
+      const d = (() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "unknown"; }})();
+      const msg = `Failed to extract content from ${d}. This site may have strong anti-bot protection or blocked our request.`;
+      return { status: "limited", title: "Content Extraction Failed", byline: null, content: msg, text: msg, site: d, estReadMin: 1, reason: "extraction_failed" };
+    }
+  }
+);
