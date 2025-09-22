@@ -1,15 +1,18 @@
 // backend/news/explain_unified.ts
 import { api } from "encore.dev/api";
 import { getConfigSummary } from "./config";
-import { fetchArticle } from "./fetch"; // our fetch endpoint function
+import { fetchArticle } from "./fetch"; // same-service API; callable directly
 import { analyzeWithLLM } from "./llm_router";
 
-type ExplainRequest = {
+// Use named interfaces for Encore's type checker
+export interface ExplainRequest {
   url?: string;
   pastedText?: string;
-};
+}
 
-type ExplainResponse = import("./llm_router").UnifiedAnalysisResponse;
+// Import the type normally, then extend into a named interface
+import type { UnifiedAnalysisResponse } from "./llm_router";
+export interface ExplainResponse extends UnifiedAnalysisResponse {}
 
 export const explain = api<ExplainRequest, ExplainResponse>(
   { expose: true, method: "POST", path: "/explain" },
@@ -47,7 +50,7 @@ export const explain = api<ExplainRequest, ExplainResponse>(
     }
 
     try {
-      // Branch: pasted text (no fetching)
+      // 1) Pasted text path: analyze directly
       if (pastedText && pastedText.trim().length > 0) {
         const clean = pastedText.trim();
         const title = (url ?? "").toString() || "User-provided text";
@@ -55,7 +58,7 @@ export const explain = api<ExplainRequest, ExplainResponse>(
         return res;
       }
 
-      // Branch: fetch from URL then analyze
+      // 2) URL path: fetch then analyze
       if (url) {
         const fetched = await fetchArticle({ url });
         const isLimited = fetched.status === "limited";
@@ -65,9 +68,7 @@ export const explain = api<ExplainRequest, ExplainResponse>(
         return res;
       }
 
-      // Should never reach here
       throw new Error("unreachable");
-
     } catch (err: any) {
       const msg = err?.message || String(err);
       console.error("❌ /news/explain failed:", msg);
