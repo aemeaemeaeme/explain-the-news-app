@@ -1,5 +1,11 @@
+// backend/news/fetch.ts
 import { api } from "encore.dev/api";
+import axios from "axios";
+import * as iconv from "iconv-lite";
+import { JSDOM } from "jsdom";
+import { Readability } from "@mozilla/readability";
 
+/** === Types stay the same so the rest of your app doesn't break === */
 interface FetchArticleRequest {
   url: string;
 }
@@ -8,426 +14,325 @@ interface FetchArticleResponse {
   status: "ok" | "limited";
   title: string;
   byline: string | null;
-  content: string;
-  text: string;
+  content: string; // raw-ish HTML or text used for model input
+  text: string;    // clean plain text
   site: string;
   estReadMin: number;
   reason?: string;
 }
 
+/** --- User agents & helpers --- */
 const USER_AGENTS = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
 ];
 
-function getRandomUserAgent(): string {
-  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+const pickUA = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+/** Detect charset from headers/meta and decode bytes to string */
+function decodeBody(data: ArrayBuffer, contentType?: string, htmlSample?: string): string {
+  let charset = "utf-8";
+
+  // From Content-Type header
+  if (contentType) {
+    const m = /charset=([^;]+)/i.exec(contentType);
+    if (m?.[1]) charset = m[1].trim().toLowerCase();
+  }
+
+  // From <meta charset> if needed
+  if (!contentType && htmlSample) {
+    const m = /<meta[^>]+charset=["']?([^"'>\s]+)/i.exec(htmlSample);
+    if (m?.[1]) charset = m[1].trim().toLowerCase();
+  }
+
+  try {
+    return iconv.decode(Buffer.from(data), charset);
+  } catch {
+    // last resort
+    return Buffer.from(data).toString("utf8");
+  }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+/** Axios fetch with robust headers, redirects and decompression */
+async function httpGetHtml(url: string, timeoutMs = 15000) {
+  const res = await axios.get<ArrayBuffer>(url, {
+    responseType: "arraybuffer",
+    timeout: timeoutMs,
+    maxRedirects: 5,
+    decompress: true,
+    validateStatus: s => s >= 200 && s < 400, // follow 3xx; treat others as error
+    headers: {
+      "User-Agent": pickUA(),
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
+      "Upgrade-Insecure-Requests": "1",
+    },
+  });
+
+  const html = decodeBody(res.data, res.headers["content-type"]);
+  return { html, finalUrl: res.request?.res?.responseUrl ?? url };
 }
 
-async function fetchWithRetries(url: string, retries = 2): Promise<string> {
+async function fetchWithRetries(url: string, retries = 2): Promise<{ html: string; finalUrl: string }> {
+  let lastErr: any;
   for (let i = 0; i <= retries; i++) {
     try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'User-Agent': getRandomUserAgent(),
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          // Deliberately omit Accept-Encoding to avoid compressed body decoding issues server-side
-        },
-        signal: AbortSignal.timeout(20000),
-        redirect: 'follow',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.text();
-    } catch (error) {
-      console.log(`Attempt ${i + 1} failed for ${url}:`, error);
-      if (i < retries) {
-        const backoff = 500 + Math.random() * 1000;
-        await sleep(backoff);
-      } else {
-        throw error;
-      }
+      return await httpGetHtml(url);
+    } catch (e) {
+      lastErr = e;
+      if (i < retries) await sleep(500 + Math.random() * 800);
     }
   }
-  throw new Error('All retries failed');
+  throw lastErr;
 }
 
+/** ---- Metadata helpers (kept close to your originals) ---- */
 function extractMetadata(html: string, url: string) {
-  const domain = new URL(url).hostname.replace(/^www\./, '');
-  
-  // Title extraction - prioritize article title over page title
+  const domain = new URL(url).hostname.replace(/^www\./, "");
   const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i);
   const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-  
-  let title = '';
-  if (ogTitleMatch) title = ogTitleMatch[1];
-  else if (h1Match) title = h1Match[1];
-  else if (titleMatch) title = titleMatch[1];
-  else title = 'Untitled Article';
-  
-  title = title.trim().replace(/\s+/g, ' ');
-  
-  // Byline extraction - more comprehensive
+  const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+
+  let title = ogTitleMatch?.[1] || h1Match?.[1] || titleMatch?.[1] || "Untitled Article";
+  title = title.replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " ");
+
   const bylinePatterns = [
     /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i,
     /<span[^>]*class="[^"]*author[^"]*"[^>]*>([^<]+)<\/span>/i,
     /<p[^>]*class="[^"]*byline[^"]*"[^>]*>([^<]+)<\/p>/i,
     /<div[^>]*class="[^"]*byline[^"]*"[^>]*>.*?<span[^>]*>([^<]+)<\/span>/i,
     /By\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
-    /<address[^>]*>.*?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+).*?<\/address>/i
+    /<address[^>]*>.*?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+).*?<\/address>/i,
   ];
-  
-  let byline = null;
-  for (const pattern of bylinePatterns) {
-    const match = html.match(pattern);
-    if (match && match[1]) {
-      byline = match[1].trim().replace(/^By\s+/i, '').replace(/\s+/g, ' ');
-      if (byline.length > 3 && byline.length < 100) break;
+
+  let byline: string | null = null;
+  for (const rx of bylinePatterns) {
+    const m = html.match(rx);
+    if (m?.[1]) {
+      const val = m[1].replace(/<[^>]+>/g, "").trim().replace(/^By\s+/i, "");
+      if (val.length > 3 && val.length < 100) { byline = val; break; }
     }
   }
-  
   return { title, byline, domain };
 }
 
-function simpleReadability(html: string): { content: string; textContent: string } {
-  // Remove unwanted elements
-  let cleaned = html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<nav[\s\S]*?<\/nav>/gi, '')
-    .replace(/<header[\s\S]*?<\/header>/gi, '')
-    .replace(/<footer[\s\S]*?<\/footer>/gi, '')
-    .replace(/<aside[\s\S]*?<\/aside>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<div[^>]*class="[^"]*(?:ad|advertisement|promo|social|share)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
-    .replace(/<div[^>]*class="[^"]*(?:subscribe|newsletter)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+/** Strong default parser: JSDOM + Readability */
+function parseWithReadability(html: string, url: string) {
+  const dom = new JSDOM(html, { url });
+  const reader = new Readability(dom.window.document);
+  const article = reader.parse();
+  if (!article) return { content: "", textContent: "" };
 
-  // Try to find main content area
-  const contentSelectors = [
-    /<article[^>]*>([\s\S]*?)<\/article>/i,
-    /<div[^>]*class="[^"]*(?:article-content|story-body|entry-content|post-content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-    /<main[^>]*>([\s\S]*?)<\/main>/i,
-    /<div[^>]*id="[^"]*(?:article|story|content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i
-  ];
-
-  let content = cleaned;
-  for (const selector of contentSelectors) {
-    const match = cleaned.match(selector);
-    if (match && match[1] && match[1].length > 500) {
-      content = match[1];
-      break;
-    }
-  }
-
-  // Extract paragraphs and meaningful text
-  const paragraphs = content.match(/<p[^>]*>([^<]+(?:<[^>]+>[^<]*<\/[^>]+>[^<]*)*)<\/p>/gi) || [];
-  const cleanParagraphs = paragraphs
-    .map(p => p.replace(/<[^>]+>/g, ' ').trim())
-    .filter(p => p.length > 30)
-    .join('\n\n');
-
-  // If paragraphs are good, use them; otherwise strip all HTML
-  let textContent;
-  if (cleanParagraphs.length > 300) {
-    textContent = cleanParagraphs;
-  } else {
-    textContent = content
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  return { 
-    content: content, 
-    textContent: textContent
+  // article.content is sanitized HTML; article.textContent is already plain text
+  return {
+    content: article.content || "",
+    textContent: (article.textContent || "").trim(),
   };
 }
 
-function findAmpUrls(html: string, originalUrl: string): string[] {
-  const ampCandidates: string[] = [];
+/** Light regex fallback (your original helper, simplified) */
+function simpleReadability(html: string) {
+  const noJunk = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "");
 
-  const ampLink = html.match(/<link[^>]*rel=["']amphtml["'][^>]*href=["']([^"']+)["']/i);
-  if (ampLink && ampLink[1]) {
-    const abs = ampLink[1].startsWith('http')
-      ? ampLink[1]
-      : new URL(ampLink[1], originalUrl).href;
-    ampCandidates.push(abs);
-  }
-
-  const u = new URL(originalUrl);
-  const variants = [
-    `${u.origin}${u.pathname.replace(/\/$/, '')}/amp`,
-    `${u.origin}${u.pathname.replace(/\/$/, '')}/amp.html`,
-    `${u.origin}${u.pathname.replace(/\/$/, '')}?amp=1`,
-    `${u.origin}/amp${u.pathname}`
+  const candidates = [
+    /<article[^>]*>([\s\S]*?)<\/article>/i,
+    /<div[^>]*class="[^"]*(?:article-content|story-body|entry-content|post-content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<main[^>]*>([\s\S]*?)<\/main>/i,
   ];
 
-  for (const v of variants) {
-    if (!ampCandidates.includes(v)) ampCandidates.push(v);
+  let content = "";
+  for (const rx of candidates) {
+    const m = noJunk.match(rx);
+    if (m?.[1] && m[1].length > 400) { content = m[1]; break; }
   }
+  if (!content) content = noJunk;
 
-  return ampCandidates;
+  const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return { content, textContent };
+}
+
+/** AMP helpers, JSON-LD, OG (kept, improved slightly) */
+function findAmpUrls(html: string, baseUrl: string): string[] {
+  const out: string[] = [];
+  const relAmp = html.match(/<link[^>]*rel=["']amphtml["'][^>]*href=["']([^"']+)["']/i)?.[1];
+  if (relAmp) out.push(new URL(relAmp, baseUrl).href);
+
+  const u = new URL(baseUrl);
+  const variants = [
+    `${u.origin}${u.pathname.replace(/\/$/, "")}/amp`,
+    `${u.origin}${u.pathname.replace(/\/$/, "")}/amp.html`,
+    `${u.origin}${u.pathname.replace(/\/$/, "")}?amp=1`,
+    `${u.origin}/amp${u.pathname}`,
+  ];
+  for (const v of variants) if (!out.includes(v)) out.push(v);
+  return out;
 }
 
 function extractJsonLd(html: string): string {
-  const jsonLdMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
-  if (!jsonLdMatches) return '';
-
-  for (const tag of jsonLdMatches) {
+  const tags = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  if (!tags) return "";
+  for (const t of tags) {
     try {
-      const jsonText = tag.replace(/^<script[^>]*>/i, '').replace(/<\/script>$/i, '');
-      const data = JSON.parse(jsonText);
-      const items = Array.isArray(data) ? data : [data];
-
-      for (const item of items) {
-        if (item['@type'] === 'NewsArticle' || item['@type'] === 'Article') {
-          if (typeof item.articleBody === 'string') return item.articleBody;
-          if (typeof item.text === 'string') return item.text;
-          if (Array.isArray(item.paragraph)) return item.paragraph.join('\n\n');
+      const json = t.replace(/^<script[^>]*>/i, "").replace(/<\/script>$/i, "");
+      const data = JSON.parse(json);
+      const arr = Array.isArray(data) ? data : [data];
+      for (const item of arr) {
+        if (item["@type"] === "NewsArticle" || item["@type"] === "Article") {
+          if (typeof item.articleBody === "string") return item.articleBody;
+          if (typeof item.text === "string") return item.text;
+          if (Array.isArray(item.paragraph)) return item.paragraph.join("\n\n");
         }
       }
-    } catch (e) {
-      // continue
-    }
+    } catch { /* ignore */ }
   }
-  return '';
+  return "";
 }
 
 function extractOpenGraphContent(html: string): string {
-  const ogDescription = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i);
-  const description = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
-  
-  let content = '';
-  if (ogDescription && ogDescription[1]) content += ogDescription[1] + '\n\n';
-  if (description && description[1] && description[1] !== ogDescription?.[1]) {
-    content += description[1] + '\n\n';
-  }
-  
-  // Add some paragraph content as fallback
-  const paragraphs = html.match(/<p[^>]*>([^<]+)<\/p>/gi) || [];
-  const firstParagraphs = paragraphs
-    .slice(0, 6) // was 3
-    .map(p => p.replace(/<[^>]+>/g, '').trim())
+  const ogDesc = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i)?.[1];
+  const desc = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i)?.[1];
+  const firstParas = (html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [])
+    .slice(0, 6)
+    .map(p => p.replace(/<[^>]+>/g, "").trim())
     .filter(p => p.length > 20)
-    .join('\n\n');
-  
-  content += firstParagraphs;
-  return content.trim();
+    .join("\n\n");
+
+  return [ogDesc, desc, firstParas].filter(Boolean).join("\n\n").trim();
 }
 
-async function tryAmpUrl(ampUrl: string): Promise<{ content: string; textContent: string } | null> {
-  try {
-    const html = await fetchWithRetries(ampUrl, 1);
-    const result = simpleReadability(html);
-    if (result.textContent.length >= 800) {
-      return result;
-    }
-  } catch (e) {
-    console.log('AMP fetch failed:', e);
-  }
-  return null;
-}
-
+/** Domain adapters (you had good ones — keep as last-ditch fallbacks) */
 function getDomainAdapter(domain: string) {
   const adapters: Record<string, (html: string) => { content: string; textContent: string }> = {
-    'cnn.com': (html) => {
-      // Try CNN-specific selectors
-      const patterns = [
-        /<div[^>]*class="[^"]*zn-body__paragraph[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-        /<div[^>]*data-editable=["']text["'][^>]*>([\s\S]*?)<\/div>/gi
-      ];
-      
-      for (const pattern of patterns) {
-        const matches = html.match(pattern);
-        if (matches && matches.length > 3) {
-          const content = matches.join('\n');
-          const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-          if (textContent.length > 500) {
-            return { content, textContent };
-          }
-        }
-      }
-      return simpleReadability(html);
-    },
-    
-    'reuters.com': (html) => {
-      const paragraphPattern = /<p[^>]*data-testid=["']paragraph-\d+["'][^>]*>([\s\S]*?)<\/p>/gi;
-      const matches = html.match(paragraphPattern);
-      if (matches && matches.length > 2) {
-        const content = matches.join('\n');
-        const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        if (textContent.length > 500) {
-          return { content, textContent };
-        }
-      }
-      return simpleReadability(html);
-    },
-    
-    'apnews.com': (html) => {
-      const storyPattern = /<div[^>]*class="[^"]*RichTextStoryBody[^"]*"[^>]*>([\s\S]*?)<\/div>/i;
-      const match = html.match(storyPattern);
-      if (match && match[1]) {
-        const content = match[1];
-        const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        if (textContent.length > 500) {
-          return { content, textContent };
-        }
-      }
-      return simpleReadability(html);
-    },
-
-    'foxnews.com': (html) => {
-      const blocks = html.match(/<div[^>]*class="[^"]*article-body[^"]*"[^>]*>([\s\S]*?)<\/div>/gi)
-        || html.match(/<p[^>]*class="[^"]*article-body[^"]*"[^>]*>([\s\S]*?)<\/p>/gi);
-      if (blocks && blocks.length > 3) {
-        const content = Array.isArray(blocks) ? blocks.join('\n') : String(blocks);
-        const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    "cnn.com": (html) => {
+      const matches = html.match(/<div[^>]*class="[^"]*zn-body__paragraph[^"]*"[^>]*>([\s\S]*?)<\/div>/gi);
+      if (matches && matches.length > 3) {
+        const content = matches.join("\n");
+        const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
         if (textContent.length > 500) return { content, textContent };
       }
       return simpleReadability(html);
     },
-
-    'politico.com': (html) => {
-      const m = html.match(/<div[^>]*class="[^"]*(?:story-text|article-content|content-group)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
-      if (m && m[1]) {
+    "reuters.com": (html) => {
+      const matches = html.match(/<p[^>]*data-testid=["']paragraph-\d+["'][^>]*>([\s\S]*?)<\/p>/gi);
+      if (matches && matches.length > 2) {
+        const content = matches.join("\n");
+        const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (textContent.length > 500) return { content, textContent };
+      }
+      return simpleReadability(html);
+    },
+    "apnews.com": (html) => {
+      const m = html.match(/<div[^>]*class="[^"]*RichTextStoryBody[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+      if (m?.[1]) {
         const content = m[1];
-        const textContent = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (textContent.length > 500) return { content, textContent };
+      }
+      return simpleReadability(html);
+    },
+    "foxnews.com": (html) => {
+      const blocks = html.match(/<div[^>]*class="[^"]*article-body[^"]*"[^>]*>([\s\S]*?)<\/div>/gi)
+        || html.match(/<p[^>]*class="[^"]*article-body[^"]*"[^>]*>([\s\S]*?)<\/p>/gi);
+      if (blocks && blocks.length > 3) {
+        const content = Array.isArray(blocks) ? blocks.join("\n") : String(blocks);
+        const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (textContent.length > 500) return { content, textContent };
+      }
+      return simpleReadability(html);
+    },
+    "politico.com": (html) => {
+      const m = html.match(/<div[^>]*class="[^"]*(?:story-text|article-content|content-group)[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+      if (m?.[1]) {
+        const content = m[1];
+        const textContent = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
         if (textContent.length > 600) return { content, textContent };
       }
       return simpleReadability(html);
-    }
+    },
   };
-
   return adapters[domain] || simpleReadability;
 }
 
+/** === Main Encore API === */
 export const fetchArticle = api<FetchArticleRequest, FetchArticleResponse>(
   { expose: true, method: "POST", path: "/fetch" },
   async ({ url }) => {
     console.log(`🔍 Starting extraction for: ${url}`);
-    
+    try { new URL(url); } catch { throw new Error("Invalid URL provided"); }
+
     try {
-      new URL(url);
-    } catch {
-      throw new Error("Invalid URL provided");
-    }
-    
-    const domain = new URL(url).hostname.replace(/^www\./, '');
-    
-    try {
-      // Step 1: Try direct fetch with domain adapter
-      console.log('📥 Step 1: Direct fetch with domain adapter');
-      const html = await fetchWithRetries(url);
-      const metadata = extractMetadata(html, url);
-      
-      const adapter = getDomainAdapter(domain);
-      let result = adapter(html);
-      
-      if (result.textContent.length >= 1200) {
-        console.log(`✅ Step 1 success: ${result.textContent.length} chars`);
-        return {
-          status: "ok",
-          title: metadata.title,
-          byline: metadata.byline,
-          content: result.content,
-          text: result.textContent,
-          site: metadata.domain,
-          estReadMin: Math.max(1, Math.round(result.textContent.split(/\s+/).length / 225))
-        };
+      // 1) Fetch HTML (robust)
+      const { html, finalUrl } = await fetchWithRetries(url);
+      const { title, byline, domain } = extractMetadata(html, finalUrl);
+
+      // 2) Primary: JSDOM + Readability
+      let parsed = parseWithReadability(html, finalUrl);
+      if (parsed.textContent && parsed.textContent.length >= 900) {
+        console.log(`✅ Readability success: ${parsed.textContent.length} chars`);
+        const est = Math.max(1, Math.round(parsed.textContent.split(/\s+/).length / 225));
+        return { status: "ok", title, byline, content: parsed.content, text: parsed.textContent, site: domain, estReadMin: est };
       }
-      
-      // Step 2: Try AMP (iterate through multiple candidates)
-      console.log('📱 Step 2: Trying AMP');
-      const ampUrls = findAmpUrls(html, url);
-      for (const ampUrl of ampUrls) {
-        const ampResult = await tryAmpUrl(ampUrl);
-        if (ampResult && ampResult.textContent.length >= 900) {
-          console.log(`✅ Step 2 AMP success: ${ampResult.textContent.length} chars`);
-          return {
-            status: "ok",
-            title: metadata.title,
-            byline: metadata.byline,
-            content: ampResult.content,
-            text: ampResult.textContent,
-            site: metadata.domain,
-            estReadMin: Math.max(1, Math.round(ampResult.textContent.split(/\s+/).length / 225))
-          };
+
+      // 3) Domain adapter (fallback)
+      const adapter = getDomainAdapter(domain);
+      parsed = adapter(html);
+      if (parsed.textContent && parsed.textContent.length >= 900) {
+        console.log(`✅ Domain adapter success: ${parsed.textContent.length} chars`);
+        const est = Math.max(1, Math.round(parsed.textContent.split(/\s+/).length / 225));
+        return { status: "ok", title, byline, content: parsed.content, text: parsed.textContent, site: domain, estReadMin: est };
+      }
+
+      // 4) AMP variants
+      for (const ampUrl of findAmpUrls(html, finalUrl)) {
+        try {
+          const { html: ampHtml } = await fetchWithRetries(ampUrl, 1);
+          const ampParsed = parseWithReadability(ampHtml, ampUrl);
+          if (ampParsed.textContent.length >= 800) {
+            console.log(`✅ AMP success: ${ampParsed.textContent.length} chars`);
+            const est = Math.max(1, Math.round(ampParsed.textContent.split(/\s+/).length / 225));
+            return { status: "ok", title, byline, content: ampParsed.content, text: ampParsed.textContent, site: domain, estReadMin: est };
+          }
+        } catch (e) {
+          console.log("AMP fetch failed:", e);
         }
       }
-      
-      // Step 3: Try JSON-LD
-      console.log('📋 Step 3: Trying JSON-LD');
-      const jsonLdContent = extractJsonLd(html);
-      if (jsonLdContent.length >= 900) {
-        console.log(`✅ Step 3 JSON-LD success: ${jsonLdContent.length} chars`);
-        return {
-          status: "ok",
-          title: metadata.title,
-          byline: metadata.byline,
-          content: jsonLdContent,
-          text: jsonLdContent,
-          site: metadata.domain,
-          estReadMin: Math.max(1, Math.round(jsonLdContent.split(/\s+/).length / 225))
-        };
+
+      // 5) JSON-LD body
+      const jsonLd = extractJsonLd(html);
+      if (jsonLd && jsonLd.length >= 700) {
+        console.log(`✅ JSON-LD success: ${jsonLd.length} chars`);
+        const est = Math.max(1, Math.round(jsonLd.split(/\s+/).length / 225));
+        return { status: "ok", title, byline, content: jsonLd, text: jsonLd, site: domain, estReadMin: est };
       }
-      
-      // Step 4: Try Open Graph fallback
-      console.log('🔄 Step 4: Open Graph fallback');
-      const ogContent = extractOpenGraphContent(html);
-      if (ogContent.length >= 500) {
-        console.log(`⚠️ Step 4 limited success: ${ogContent.length} chars`);
-        return {
-          status: "limited",
-          title: metadata.title,
-          byline: metadata.byline,
-          content: ogContent,
-          text: ogContent,
-          site: metadata.domain,
-          estReadMin: Math.max(1, Math.round(ogContent.split(/\s+/).length / 225)),
-          reason: "limited_content"
-        };
+
+      // 6) OpenGraph/Description fallback
+      const og = extractOpenGraphContent(html);
+      if (og && og.length >= 300) {
+        console.log(`⚠️ Limited content via OG/desc: ${og.length} chars`);
+        const est = Math.max(1, Math.round(og.split(/\s+/).length / 225));
+        return { status: "limited", title, byline, content: og, text: og, site: domain, estReadMin: est, reason: "limited_content" };
       }
-      
-      // If we reach here, we have very limited content
-      console.log(`❌ All extraction methods failed, using metadata only`);
-      const fallbackContent = `Content extraction limited for ${metadata.domain}. ${metadata.title}`;
-      return {
-        status: "limited",
-        title: metadata.title,
-        byline: metadata.byline,
-        content: fallbackContent,
-        text: fallbackContent,
-        site: metadata.domain,
-        estReadMin: 1,
-        reason: "site_protection"
-      };
-      
-    } catch (error) {
-      console.error(`💥 Extraction failed for ${url}:`, error);
-      const domainOnly = new URL(url).hostname.replace(/^www\./, '');
-      
-      return {
-        status: "limited",
-        title: "Content Extraction Failed",
-        byline: null,
-        content: `Failed to extract content from ${domainOnly}. This site may have strong anti-bot protection.`,
-        text: `Failed to extract content from ${domainOnly}. This site may have strong anti-bot protection.`,
-        site: domainOnly,
-        estReadMin: 1,
-        reason: "extraction_failed"
-      };
+
+      // 7) Total fallback
+      console.log("❌ Extraction fell through all strategies");
+      const msg = `Content extraction limited for ${domain}. ${title}`;
+      return { status: "limited", title, byline, content: msg, text: msg, site: domain, estReadMin: 1, reason: "site_protection" };
+
+    } catch (err) {
+      console.error("💥 Extraction error:", err);
+      const d = (() => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "unknown"; }})();
+      const msg = `Failed to extract content from ${d}. This site may have strong anti-bot protection or blocked our request.`;
+      return { status: "limited", title: "Content Extraction Failed", byline: null, content: msg, text: msg, site: d, estReadMin: 1, reason: "extraction_failed" };
     }
   }
 );

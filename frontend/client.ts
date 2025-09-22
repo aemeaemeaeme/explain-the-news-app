@@ -134,6 +134,9 @@ export namespace news {
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_news_explain_unified_explain>
         }
 
+        /**
+         * === Main Encore API ===
+         */
         public async fetchArticle(params: RequestType<typeof api_news_fetch_fetchArticle>): Promise<ResponseType<typeof api_news_fetch_fetchArticle>> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/fetch`, {method: "POST", body: JSON.stringify(params)})

@@ -7,7 +7,11 @@
     "build": "cd ../frontend \u0026\u0026 bun install \u0026\u0026 vite build --outDir=../backend/frontend/dist"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "axios": "^1.12.2",
     "encore.dev": "^1.50.0",
+    "iconv-lite": "^0.6.3",
+    "jsdom": "^27.0.0",
     "openai": "^4.104.0"
   },
   "devDependencies": {
