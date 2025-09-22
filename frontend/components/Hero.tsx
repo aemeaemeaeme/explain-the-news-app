@@ -28,51 +28,22 @@ export default function Hero() {
 
   const processUrlMutation = useMutation({
     mutationFn: async ({ url, pastedText }: { url?: string; pastedText?: string }) => {
-      // 1) Try generated client (no logging of the whole client object)
-      try {
-        if (pastedText && (backend as any).news?.explain) {
-          return await (backend as any).news.explain({ url: url ?? '', pastedText });
-        }
-        if ((backend as any).news?.process) {
-          return await (backend as any).news.process({ url: url ?? '' });
-        }
-      } catch {
-        // continue to HTTP fallback
+      // Use the generated Encore client ONLY. No manual fetch.
+      if (pastedText && (backend as any).news?.explain) {
+        return await (backend as any).news.explain({ url: url ?? '', pastedText });
       }
-
-      // 2) HTTP fallback to Encore gateway (must start with /api)
-      const body = pastedText ? { url: url ?? '', pastedText } : { url: url ?? '' };
-      const res = await fetch('/api/news/article/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status} ${res.statusText} – ${txt.slice(0, 200)}`);
+      if ((backend as any).news?.process) {
+        return await (backend as any).news.process({ url: url ?? '' });
       }
-
-      const ct = res.headers.get('content-type') || '';
-      if (!ct.includes('application/json')) {
-        const text = await res.text().catch(() => '');
-        throw new Error(
-          'Unexpected non-JSON response from server.' +
-          (text ? ` Preview: ${text.slice(0, 120)}` : '')
-        );
-      }
-
-      return res.json();
+      throw new Error('Backend API not available');
     },
 
     onSuccess: (response: any) => {
-      // Make sure we only push **serializable** data into history state
+      // Ensure we only push serializable data into history state
       let analysis: any;
       try {
         analysis = JSON.parse(JSON.stringify(response));
       } catch {
-        // worst case: wrap minimally
         analysis = { meta: { status: 'error' }, raw: String(response) };
       }
 
@@ -89,22 +60,14 @@ export default function Hero() {
     },
 
     onError: (err: unknown) => {
-      // Convert to a cloneable string; don't pass the raw object to console/log panels
       const msg =
-        err instanceof Error
-          ? err.message
-          : typeof err === 'string'
-          ? err
-          : 'Unknown error';
-
-      // Keep logs serializable to avoid DataCloneError in the preview
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
+      // Keep logs clone-safe (string only)
       console.error('[Hero] Error processing URL:', msg);
-
       alert(`Error processing URL:\n${msg}`);
-
       toast({
-        title: 'Connection Error',
-        description: "Can't reach the server. Check your connection and try again.",
+        title: 'Request failed',
+        description: msg.includes('fetch') ? 'Could not reach the API.' : msg,
         variant: 'destructive',
       });
     },
@@ -139,8 +102,8 @@ export default function Hero() {
         </h1>
 
         <p className="text-xl mb-12 max-w-3xl mx-auto leading-relaxed" style={{ color: 'var(--gray-600)' }}>
-          Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key points and sentiment
-          so you see the whole picture.
+          Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key
+          points and sentiment so you see the whole picture.
         </p>
 
         <form onSubmit={handleSubmit} className="relative z-10 max-w-2xl mx-auto mb-8">
