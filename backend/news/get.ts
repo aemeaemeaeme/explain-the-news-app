@@ -161,4 +161,53 @@ export const getArticle = api<GetArticleRequest, GetArticleResponse>(
       },
       eli5: {
         summary: ensureString(r.eli5_summary, ""),
-        analogy: r.eli5_analogy ? ensureString(r.eli5_analogy) : undefined,
+        ...(r.eli5_analogy ? { analogy: ensureString(r.eli5_analogy) } : {})
+      },
+      why_it_matters: why,
+
+      key_points: keyPointsRaw
+        .map((k: any) => ({
+          text: ensureString(k?.text, ""),
+          tag: mapPointTag(k?.tag),
+        }))
+        .filter(k => k.text),
+
+      perspectives: perspectivesRaw.slice(0, 2).map(coercePerspective),
+
+      common_ground: common,
+
+      glossary: glossaryRaw
+        .map((g: any) => ({
+          term: ensureString(g?.term, ""),
+          definition: ensureString(g?.definition, ""),
+          link: g?.link ? ensureString(g.link) : undefined,
+        }))
+        .filter((g: any) => g.term && g.definition),
+
+      bias: {
+        left: b.A,
+        center: b.B,
+        right: b.C,
+        confidence: ensureEnum(r.bias_confidence, ["low", "medium", "high"] as const, "medium"),
+        rationale: ensureString(r.bias_rationale, ""),
+        colors: { left: "#3b82f6", center: "#84a98c", right: "#ef4444" },
+      },
+
+      tone: ensureEnum(r.tone, ["factual", "neutral", "opinionated", "satirical"] as const, "factual"),
+
+      sentiment: {
+        positive: s.A,
+        neutral: s.B,
+        negative: s.C,
+        rationale: ensureString(r.sentiment_rationale, ""),
+      },
+
+      source_mix: ensureString(r.source_mix, ""),
+      reading_time_minutes: Math.max(1, Math.round(ensureNum(r.reading_time, 1))),
+      privacy_note: "Auto-deletes after 24h",
+      follow_up_questions: followups.length ? followups : [],
+    };
+
+    return { article };
+  }
+);
