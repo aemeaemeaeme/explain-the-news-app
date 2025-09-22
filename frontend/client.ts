@@ -113,6 +113,9 @@ export namespace news {
             this.testGemini = this.testGemini.bind(this)
         }
 
+        /**
+         * ================== API ==================
+         */
         public async analyze(params: RequestType<typeof api_news_analyze_analyze>): Promise<ResponseType<typeof api_news_analyze_analyze>> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/analyze`, {method: "POST", body: JSON.stringify(params)})
@@ -166,7 +169,7 @@ export namespace news {
         }
 
         /**
-         * ---------------- Endpoint ----------------
+         * ========= Public endpoint =========
          */
         public async process(params: RequestType<typeof api_news_process_process>): Promise<ResponseType<typeof api_news_process_process>> {
             // Now make the actual call to the API
