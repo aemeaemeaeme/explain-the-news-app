@@ -10,26 +10,8 @@ import PaywallModal from './PaywallModal';
 import PasteTextModal from './PasteTextModal';
 import backend from '~backend/client';
 
-function normalizeUrl(raw: string): string | null {
-  const s = (raw || '').trim();
-  if (!s) return null;
-  try {
-    const u = new URL(s);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-    return u.toString();
-  } catch {
-    try {
-      const u2 = new URL(`https://${s}`);
-      return u2.toString();
-    } catch {
-      return null;
-    }
-  }
-}
-
-function Hero() {
+export default function Hero() {
   const [url, setUrl] = useState('');
-  const [status, setStatus] = useState<string>('');
   const [showPaywall, setShowPaywall] = useState(false);
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [resetTime, setResetTime] = useState<number>();
@@ -44,95 +26,73 @@ function Hero() {
     }
   }, [location.state, navigate]);
 
-  // -------- URL → backend process (with path fallbacks) --------
   const processUrlMutation = useMutation({
-    mutationFn: async (rawUrl: string) => {
-      setStatus('Validating URL…');
-      const safe = normalizeUrl(rawUrl);
-      if (!safe) throw new Error('Please enter a valid news article URL (http/https).');
-
-      // 1) Generated client call
-      const fn = (backend as any)?.news?.process;
-      if (typeof fn === 'function') {
-        setStatus('Calling backend.news.process (client)…');
-        try {
-          return await fn({ url: safe });
-        } catch (e) {
-          console.warn('[Hero] client call failed, trying direct fetch…', e);
-        }
-      } else {
-        console.warn('[Hero] backend.news.process not on client, using direct fetch…');
-      }
-
-      // 2) Direct path #1
-      setStatus('Calling /news/article/process…');
+    mutationFn: async ({ url, pastedText }: { url?: string; pastedText?: string }) => {
+      // 1) Try generated client
+      console.log('[Hero] backend client:', backend);
       try {
-        const r1 = await fetch('/news/article/process', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: safe }),
-        });
-        if (!r1.ok) throw new Error(`HTTP ${r1.status}`);
-        return await r1.json();
+        console.log('[Hero] Explain It clicked');
+        if (pastedText) {
+          // unified “explain” route if you have it:
+          if ((backend as any).news?.explain) {
+            return await (backend as any).news.explain({ url: url ?? '', pastedText });
+          }
+        }
+        // fall back to known working process route via client
+        if ((backend as any).news?.process) {
+          console.log('[Hero] POST news.process:', { url });
+          return await (backend as any).news.process({ url: url ?? '' });
+        }
       } catch (e) {
-        console.warn('[Hero] /news/article/process failed, trying /article/process…', e);
+        console.warn('[Hero] client call failed, trying direct fetch…', e);
       }
 
-      // 3) Direct path #2
-      setStatus('Calling /article/process…');
-      const r2 = await fetch('/article/process', {
+      // 2) Fallback: call Encore gateway directly (NOTE the /api prefix)
+      // Service: "news", path in code: "/article/process"
+      const body = pastedText ? { url: url ?? '', pastedText } : { url: url ?? '' };
+      const res = await fetch('/api/news/article/process', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: safe }),
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
       });
-      if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
-      return await r2.json();
-    },
 
-    onSuccess: (res: any) => {
-      if (res?.rateLimited) {
-        setResetTime(res.resetTime);
-        setShowPaywall(true);
-        setStatus('Rate limited — showing paywall.');
-        return;
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status} ${res.statusText} – ${text.slice(0, 200)}`);
       }
-      if (!res?.success || !res?.id) {
-        const msg = res?.error || 'Unknown error from backend.';
-        setStatus(`Backend error: ${msg}`);
-        toast({ title: 'Could not analyze', description: msg, variant: 'destructive' });
-        return;
+
+      // Ensure we’re parsing JSON, not HTML
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        const text = await res.text();
+        console.error('Non-JSON response:', text.slice(0, 300));
+        throw new Error('Unexpected non-JSON response from server.');
       }
-      setStatus('Success. Opening article…');
-      navigate(`/article/${res.id}`);
-    },
 
-    onError: (err: any) => {
-      const msg = String(err?.message || err || 'Unknown error');
-      console.error('[Hero] Error processing URL:', err);
-      setStatus(`Error: ${msg}`);
-      toast({
-        title: 'Error processing URL',
-        description: msg.includes('Failed to fetch')
-          ? 'Network / routing issue. Check your Network tab for the failing request.'
-          : msg,
-        variant: 'destructive',
-      });
-      alert(`Error processing URL:\n${msg}`);
-    },
-  });
-
-  // -------- Paste Text → existing explain endpoint (unchanged) --------
-  const processTextMutation = useMutation({
-    mutationFn: async (pastedText: string) => {
-      setStatus('Submitting pasted text…');
-      return backend.news.explain({ url: '', pastedText });
+      return res.json();
     },
     onSuccess: (response: any) => {
-      setShowPasteModal(false);
+      if (response?.status === 'limited' && response?.meta?.source !== 'user_input') {
+        toast({
+          title: 'Limited Analysis',
+          description: 'Access restricted — analysis based on metadata/neutral context.',
+          variant: 'default',
+        });
+      }
       navigate('/article/temp', { state: { analysis: response } });
+      setShowPasteModal(false);
     },
     onError: (error: any) => {
-      console.error('[Hero] Error processing pasted text:', error);
+      console.error('[Hero] Error processing URL:', error);
+      const msg = String(error?.message || error);
+      // common DX helper for the exact problem you hit
+      const hint = msg.includes('Unexpected non-JSON') || msg.includes('<!DOCTYPE')
+        ? 'This usually means the request hit the frontend dev server instead of /api. The fallback now targets /api/news/article/process.'
+        : undefined;
+
+      alert(`Error processing URL:\n${msg}${hint ? `\n\nHint: ${hint}` : ''}`);
+
       toast({
         title: 'Connection Error',
         description: "Can't reach the server. Check your connection and try again.",
@@ -144,15 +104,22 @@ function Hero() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim()) return;
-    setStatus('Starting…');
-    processUrlMutation.mutate(url);
+    // Basic URL validation
+    try {
+      new URL(url);
+      processUrlMutation.mutate({ url });
+    } catch {
+      toast({
+        title: 'Invalid URL',
+        description: 'Please enter a valid news article URL.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handlePasteTextSubmit = (pastedText: string) => {
-    processTextMutation.mutate(pastedText);
+    processUrlMutation.mutate({ pastedText });
   };
-
-  const isPending = processUrlMutation.isPending || processTextMutation.isPending;
 
   return (
     <section className="relative py-24 px-4 bg-[#F7F7F7]">
@@ -164,10 +131,11 @@ function Hero() {
         </h1>
 
         <p className="text-xl mb-12 max-w-3xl mx-auto leading-relaxed" style={{ color: 'var(--gray-600)' }}>
-          Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key points and sentiment so you see the whole picture.
+          Drop any news link and get a 30-second summary with bias check, opposing viewpoints, key points and sentiment
+          so you see the whole picture.
         </p>
 
-        <form onSubmit={handleSubmit} className="relative z-10 max-w-2xl mx-auto mb-3">
+        <form onSubmit={handleSubmit} className="relative z-10 max-w-2xl mx-auto mb-8">
           <div className="flex gap-3">
             <div className="flex-1 relative">
               <Input
@@ -181,26 +149,20 @@ function Hero() {
                 placeholder="Paste a news article URL here..."
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                disabled={isPending}
+                disabled={processUrlMutation.isPending}
                 className="w-full h-14 text-lg px-6 rounded-2xl border-2 border-gray-200 bg-white/95 focus:outline-none focus:ring-4 focus:ring-[var(--sage)]/30 focus:border-[var(--sage)] transition-all pointer-events-auto"
                 style={{ zIndex: 10, position: 'relative' }}
               />
             </div>
             <Button
               type="submit"
-              disabled={!url.trim() || isPending}
+              disabled={!url.trim() || processUrlMutation.isPending}
               className="btn-sage h-14 px-8 font-semibold focus-ring"
             >
-              {isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Explain It'}
+              {processUrlMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Explain It'}
             </Button>
           </div>
         </form>
-
-        {!!status && (
-          <div className="text-sm text-gray-500 mb-8" aria-live="polite">
-            {status}
-          </div>
-        )}
 
         <div className="max-w-2xl mx-auto mb-12">
           <div className="flex items-center justify-center gap-4 mb-4">
@@ -212,7 +174,7 @@ function Hero() {
           <Button
             variant="outline"
             onClick={() => setShowPasteModal(true)}
-            disabled={isPending}
+            disabled={processUrlMutation.isPending}
             className="w-full h-12 text-base border-2 border-gray-200 bg-white/95 hover:bg-gray-50 transition-all"
           >
             <FileText className="h-5 w-5 mr-2" />
@@ -257,10 +219,8 @@ function Hero() {
         isOpen={showPasteModal}
         onClose={() => setShowPasteModal(false)}
         onSubmit={handlePasteTextSubmit}
-        isLoading={isPending}
+        isLoading={processUrlMutation.isPending}
       />
     </section>
   );
 }
-
-export default Hero;
