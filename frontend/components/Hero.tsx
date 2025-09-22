@@ -15,8 +15,7 @@ type ExplainResponse = {
   [k: string]: any;
 };
 
-// Prefer Encore API prefix; fall back to non-prefixed if some env rewrites it.
-const API_PATHS = ['/api/news/explain', '/news/explain'];
+const API_URL = '/api/news/explain'; // Encore endpoints are always under /api/<service>/<path>
 
 export default function Hero() {
   const [url, setUrl] = useState('');
@@ -35,46 +34,42 @@ export default function Hero() {
   }, [location.state, navigate]);
 
   async function callExplain(body: { url?: string; pastedText?: string }): Promise<ExplainResponse> {
-    let lastErr: any;
-    for (const path of API_PATHS) {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // This helps some preview servers route correctly instead of serving HTML
+        'Accept': 'application/json',
+      },
+      // keep it same-origin so Encore’s router catches it
+      credentials: 'same-origin',
+      body: JSON.stringify(body),
+    });
+
+    const text = await res.text();
+
+    // If we got HTML, we definitely hit the SPA, not the API.
+    if (/<!doctype html/i.test(text)) {
+      throw new Error('Unexpected non-JSON (HTML) from /api/news/explain — request hit the frontend instead of the API.');
+    }
+
+    if (!res.ok) {
       try {
-        const res = await fetch(path, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-
-        const text = await res.text();
-
-        // If the server sent back HTML (SPA shell), try the next path.
-        const looksHtml = /^\s*</.test(text) && /<!doctype html/i.test(text);
-        if (looksHtml) {
-          lastErr = new Error(`Unexpected non-JSON (HTML) from ${path}.`);
-          continue;
-        }
-
-        if (!res.ok) {
-          try {
-            const j = JSON.parse(text);
-            const msg = j?.errors?.[0]?.message || j?.message || `${res.status} ${res.statusText}`;
-            throw new Error(msg);
-          } catch {
-            const snippet = text.slice(0, 220).replace(/\s+/g, ' ');
-            throw new Error(`HTTP ${res.status} – ${res.statusText}. Preview: ${snippet}`);
-          }
-        }
-
-        try {
-          return JSON.parse(text) as ExplainResponse;
-        } catch {
-          const snippet = text.slice(0, 220).replace(/\s+/g, ' ');
-          throw new Error(`Unexpected non-JSON response from server. Preview: ${snippet}`);
-        }
-      } catch (e) {
-        lastErr = e;
+        const j = JSON.parse(text);
+        const msg = j?.errors?.[0]?.message || j?.message || `${res.status} ${res.statusText}`;
+        throw new Error(msg);
+      } catch {
+        const snippet = text.slice(0, 220).replace(/\s+/g, ' ');
+        throw new Error(`HTTP ${res.status} – ${res.statusText}. Preview: ${snippet}`);
       }
     }
-    throw lastErr || new Error('All API paths failed.');
+
+    try {
+      return JSON.parse(text) as ExplainResponse;
+    } catch {
+      const snippet = text.slice(0, 220).replace(/\s+/g, ' ');
+      throw new Error(`Unexpected non-JSON response from server. Preview: ${snippet}`);
+    }
   }
 
   const processMutation = useMutation({
