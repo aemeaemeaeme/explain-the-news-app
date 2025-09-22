@@ -10,13 +10,13 @@ import PaywallModal from './PaywallModal';
 import PasteTextModal from './PasteTextModal';
 
 type ExplainResponse = {
-  meta: { status: 'full' | 'limited' | 'error'; url: string; site?: string | null };
+  meta: { status: 'full' | 'limited' | 'error'; url: string; site?: string | null; source?: string };
   header: { title: string; byline: string | null; read_time_min: number | null; tone: string };
-  // the rest is carried along; we don’t need to type every field to navigate
   [k: string]: any;
 };
 
-const API_PATH = '/news/explain'; // Encore API you exposed
+// Prefer Encore API prefix; fall back to non-prefixed if some env rewrites it.
+const API_PATHS = ['/api/news/explain', '/news/explain'];
 
 export default function Hero() {
   const [url, setUrl] = useState('');
@@ -35,34 +35,46 @@ export default function Hero() {
   }, [location.state, navigate]);
 
   async function callExplain(body: { url?: string; pastedText?: string }): Promise<ExplainResponse> {
-    // Single, direct, same-origin call to your Encore endpoint.
-    const res = await fetch(API_PATH, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    // Helpful diagnostics if something weird comes back
-    const text = await res.text();
-    if (!res.ok) {
-      // Try to show JSON error first, otherwise preview HTML/text
+    let lastErr: any;
+    for (const path of API_PATHS) {
       try {
-        const j = JSON.parse(text);
-        const msg = j?.errors?.[0]?.message || j?.message || `${res.status} ${res.statusText}`;
-        throw new Error(msg);
-      } catch {
-        const snippet = text.slice(0, 220).replace(/\s+/g, ' ');
-        throw new Error(`HTTP ${res.status} – ${res.statusText}. Preview: ${snippet}`);
+        const res = await fetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        const text = await res.text();
+
+        // If the server sent back HTML (SPA shell), try the next path.
+        const looksHtml = /^\s*</.test(text) && /<!doctype html/i.test(text);
+        if (looksHtml) {
+          lastErr = new Error(`Unexpected non-JSON (HTML) from ${path}.`);
+          continue;
+        }
+
+        if (!res.ok) {
+          try {
+            const j = JSON.parse(text);
+            const msg = j?.errors?.[0]?.message || j?.message || `${res.status} ${res.statusText}`;
+            throw new Error(msg);
+          } catch {
+            const snippet = text.slice(0, 220).replace(/\s+/g, ' ');
+            throw new Error(`HTTP ${res.status} – ${res.statusText}. Preview: ${snippet}`);
+          }
+        }
+
+        try {
+          return JSON.parse(text) as ExplainResponse;
+        } catch {
+          const snippet = text.slice(0, 220).replace(/\s+/g, ' ');
+          throw new Error(`Unexpected non-JSON response from server. Preview: ${snippet}`);
+        }
+      } catch (e) {
+        lastErr = e;
       }
     }
-
-    // Parse JSON (if server sent HTML you’ll see the preview above)
-    try {
-      return JSON.parse(text) as ExplainResponse;
-    } catch {
-      const snippet = text.slice(0, 220).replace(/\s+/g, ' ');
-      throw new Error(`Unexpected non-JSON response from server. Preview: ${snippet}`);
-    }
+    throw lastErr || new Error('All API paths failed.');
   }
 
   const processMutation = useMutation({
@@ -82,10 +94,8 @@ export default function Hero() {
     },
     onError: (err: any) => {
       const msg = (err?.message || 'Failed to reach the server').toString();
-      // Show a modal-style alert and a toast for visibility during debug
       alert(`Error processing URL:\n${msg}`);
       toast({ title: 'Request failed', description: msg, variant: 'destructive' });
-      // console for devs
       // eslint-disable-next-line no-console
       console.error('[Hero] Error processing URL:', err);
     },
@@ -95,13 +105,16 @@ export default function Hero() {
     e.preventDefault();
     const raw = url.trim();
     if (!raw) return;
-    // Basic URL validation; we don’t reject non-HTTP schemes silently
     try {
       const u = new URL(raw);
       if (!/^https?:$/i.test(u.protocol)) throw new Error('URL must start with http or https');
       processMutation.mutate({ url: raw });
     } catch (e: any) {
-      toast({ title: 'Invalid URL', description: e?.message || 'Please enter a valid article URL.', variant: 'destructive' });
+      toast({
+        title: 'Invalid URL',
+        description: e?.message || 'Please enter a valid article URL.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -172,9 +185,6 @@ export default function Hero() {
             Paste Article Text Instead
           </Button>
         </div>
-
-        {/* chips omitted for brevity; keep yours if you want */}
-
       </div>
 
       <PaywallModal isOpen={showPaywall} onClose={() => setShowPaywall(false)} resetTime={resetTime} />
