@@ -28,27 +28,19 @@ export default function Hero() {
 
   const processUrlMutation = useMutation({
     mutationFn: async ({ url, pastedText }: { url?: string; pastedText?: string }) => {
-      // 1) Try generated client
-      console.log('[Hero] backend client:', backend);
+      // 1) Try generated client (no logging of the whole client object)
       try {
-        console.log('[Hero] Explain It clicked');
-        if (pastedText) {
-          // unified “explain” route if you have it:
-          if ((backend as any).news?.explain) {
-            return await (backend as any).news.explain({ url: url ?? '', pastedText });
-          }
+        if (pastedText && (backend as any).news?.explain) {
+          return await (backend as any).news.explain({ url: url ?? '', pastedText });
         }
-        // fall back to known working process route via client
         if ((backend as any).news?.process) {
-          console.log('[Hero] POST news.process:', { url });
           return await (backend as any).news.process({ url: url ?? '' });
         }
-      } catch (e) {
-        console.warn('[Hero] client call failed, trying direct fetch…', e);
+      } catch {
+        // continue to HTTP fallback
       }
 
-      // 2) Fallback: call Encore gateway directly (NOTE the /api prefix)
-      // Service: "news", path in code: "/article/process"
+      // 2) HTTP fallback to Encore gateway (must start with /api)
       const body = pastedText ? { url: url ?? '', pastedText } : { url: url ?? '' };
       const res = await fetch('/api/news/article/process', {
         method: 'POST',
@@ -58,40 +50,57 @@ export default function Hero() {
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status} ${res.statusText} – ${text.slice(0, 200)}`);
+        const txt = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} ${res.statusText} – ${txt.slice(0, 200)}`);
       }
 
-      // Ensure we’re parsing JSON, not HTML
       const ct = res.headers.get('content-type') || '';
       if (!ct.includes('application/json')) {
-        const text = await res.text();
-        console.error('Non-JSON response:', text.slice(0, 300));
-        throw new Error('Unexpected non-JSON response from server.');
+        const text = await res.text().catch(() => '');
+        throw new Error(
+          'Unexpected non-JSON response from server.' +
+          (text ? ` Preview: ${text.slice(0, 120)}` : '')
+        );
       }
 
       return res.json();
     },
+
     onSuccess: (response: any) => {
-      if (response?.status === 'limited' && response?.meta?.source !== 'user_input') {
+      // Make sure we only push **serializable** data into history state
+      let analysis: any;
+      try {
+        analysis = JSON.parse(JSON.stringify(response));
+      } catch {
+        // worst case: wrap minimally
+        analysis = { meta: { status: 'error' }, raw: String(response) };
+      }
+
+      if (analysis?.status === 'limited' && analysis?.meta?.source !== 'user_input') {
         toast({
           title: 'Limited Analysis',
           description: 'Access restricted — analysis based on metadata/neutral context.',
           variant: 'default',
         });
       }
-      navigate('/article/temp', { state: { analysis: response } });
+
+      navigate('/article/temp', { state: { analysis } });
       setShowPasteModal(false);
     },
-    onError: (error: any) => {
-      console.error('[Hero] Error processing URL:', error);
-      const msg = String(error?.message || error);
-      // common DX helper for the exact problem you hit
-      const hint = msg.includes('Unexpected non-JSON') || msg.includes('<!DOCTYPE')
-        ? 'This usually means the request hit the frontend dev server instead of /api. The fallback now targets /api/news/article/process.'
-        : undefined;
 
-      alert(`Error processing URL:\n${msg}${hint ? `\n\nHint: ${hint}` : ''}`);
+    onError: (err: unknown) => {
+      // Convert to a cloneable string; don't pass the raw object to console/log panels
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+          ? err
+          : 'Unknown error';
+
+      // Keep logs serializable to avoid DataCloneError in the preview
+      console.error('[Hero] Error processing URL:', msg);
+
+      alert(`Error processing URL:\n${msg}`);
 
       toast({
         title: 'Connection Error',
@@ -104,7 +113,6 @@ export default function Hero() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim()) return;
-    // Basic URL validation
     try {
       new URL(url);
       processUrlMutation.mutate({ url });
