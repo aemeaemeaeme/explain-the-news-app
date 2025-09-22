@@ -1,5 +1,4 @@
 import { AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
 interface ErrorMessageProps {
@@ -17,12 +16,14 @@ export default function ErrorMessage({ title, message }: ErrorMessageProps) {
       </div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">{title}</h2>
       <p className="text-gray-600 mb-6">{message}</p>
-      <Button 
+
+      <button
+        type="button"
         onClick={() => navigate('/')}
-        className="bg-[#A3B18A] hover:bg-[#8fa573] text-white"
+        className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-white bg-[#A3B18A] hover:bg-[#8fa573] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A3B18A]"
       >
         Try Another Article
-      </Button>
+      </button>
     </div>
   );
 }
