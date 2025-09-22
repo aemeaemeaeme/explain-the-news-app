@@ -1,4 +1,3 @@
-// frontend/components/Hero.tsx
 import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -13,13 +12,9 @@ import backend from '~backend/client';
 function normalizeUrl(raw: string): string {
   let u = (raw || '').trim();
   if (!u) return '';
-  // If user pasted without scheme, assume https
   if (!/^https?:\/\//i.test(u)) u = `https://${u}`;
-  // Still invalid? bail.
   try {
-    // will throw if invalid
     const parsed = new URL(u);
-    // Only allow http(s)
     if (!/^https?:$/i.test(parsed.protocol)) return '';
     return parsed.toString();
   } catch {
@@ -32,7 +27,6 @@ export default function Hero() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [resetTime, setResetTime] = useState<number | undefined>(undefined);
-
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -44,19 +38,15 @@ export default function Hero() {
     }
   }, [location.state, navigate]);
 
-  // ⬇️ This mutation calls YOUR backend (Encore client), not the article URL.
   const processUrlMutation = useMutation({
     mutationFn: async (rawUrl: string) => {
       const safe = normalizeUrl(rawUrl);
-      if (!safe) {
-        throw new Error('Please enter a valid news article URL (http/https).');
-      }
-      // IMPORTANT: use backend.news.process — this avoids CORS and “Failed to fetch”
+      if (!safe) throw new Error('Please enter a valid news article URL (http/https).');
+      // ✅ CALL THE REAL BACKEND ENDPOINT
       const res = await backend.news.process({ url: safe });
       return res;
     },
     onSuccess: (res: any) => {
-      // Handle rate limit response from backend
       if (res?.rateLimited) {
         setResetTime(res.resetTime);
         setShowPaywall(true);
@@ -70,12 +60,9 @@ export default function Hero() {
         });
         return;
       }
-      // Navigate to the stored article
       navigate(`/article/${res.id}`);
     },
     onError: (err: any) => {
-      // This is where browsers used to throw “TypeError: Failed to fetch”
-      // because the app tried to fetch the third-party URL directly.
       toast({
         title: 'Error processing URL',
         description: String(err?.message || 'Network error. Please try again.'),
@@ -93,17 +80,10 @@ export default function Hero() {
     processUrlMutation.mutate(url);
   };
 
-  // Optional: keep the "Paste Text" flow if you have a backend endpoint for raw text.
-  // If you do not, we’ll just show a toast for now.
   const handlePasteTextSubmit = (pastedText: string) => {
-    if (!pastedText.trim()) {
-      toast({ title: 'No text provided', description: 'Paste the article text to analyze.', variant: 'destructive' });
-      return;
-    }
-    // If you later add a backend endpoint (e.g., backend.news.processText),
-    // call it here and navigate to /article/temp with the response.
+    // Optional: wire a backend endpoint for raw text later
     toast({
-      title: 'Paste text not enabled (yet)',
+      title: 'Paste text not enabled',
       description: 'URL analysis works now. Add a backend endpoint for pasted text when ready.',
     });
     setShowPasteModal(false);
@@ -167,37 +147,6 @@ export default function Hero() {
             <FileText className="h-5 w-5 mr-2" />
             Paste Article Text Instead
           </Button>
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-3 text-sm mb-4" style={{ color: 'var(--gray-600)' }}>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
-            Bias-aware
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#3b82f6' }} />
-            Balanced summaries
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-sky">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#ec4899' }} />
-            Multiple perspectives
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#84cc16' }} />
-            Key quotes & sources
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-blush">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#a855f7' }} />
-            Sentiment & common ground
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#f97316' }} />
-            Works on most sites
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full chip-mist">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#06b6d4' }} />
-            Auto-deletes after 24h
-          </div>
         </div>
       </div>
 
