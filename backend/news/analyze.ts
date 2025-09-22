@@ -54,15 +54,14 @@ interface AnalyzeResponse {
 }
 
 /** ================== Config ================== */
-// Try both names so you don’t get blocked by a secret-name mismatch.
 const OPENAI_PRIMARY = secret("OPENAI_API_KEY");
 const OPENAI_LEGACY  = secret("OpenAIKey");
 
 const CFG = {
   model: "gpt-4o-mini",
   timeoutMs: 30000,
-  chunkChars: 6000,     // size for map-reduce
-  finalBudget: 9500,    // guard input to final prompt
+  chunkChars: 6000,
+  finalBudget: 9500,
 };
 
 /** ================== Helpers ================== */
@@ -194,4 +193,71 @@ export const analyze = api<AnalyzeRequest, AnalyzeResponse>(
         }
         composed = notes.map((n, i) =>
           `Chunk ${i + 1} TLDR: ${n.tldr}\nBullets: ${(n.bullets || []).join("; ")}\nBias L/C/R: ${n.bias?.left}/${n.bias?.center}/${n.bias?.right}\nSentiment P/N/Neg: ${n.sentiment?.positive}/${n.sentiment?.neutral}/${n.sentiment?.negative}`
-        )
+        ).join("\n\n").slice(0, CFG.finalBudget);
+      }
+
+      const user = `Summarize and analyze for a consumer app. Follow the schema exactly.
+
+${FINAL_SCHEMA}
+
+CLEANED TITLE HINT: ${cleanTitle(title, site)}
+META: ${JSON.stringify({ ...meta, url, wordCount })}
+
+ARTICLE TEXT OR COMPOSED NOTES:
+${composed}`;
+
+      const response = await withTimeout(
+        openai.chat.completions.create({
+          model: CFG.model,
+          temperature: 0.3,
+          max_tokens: 2500,
+          messages: [
+            { role: "system", content: SYSTEM },
+            { role: "user", content: user },
+          ],
+        }),
+        CFG.timeoutMs
+      );
+
+      const raw = (response as any).choices?.[0]?.message?.content ?? "";
+      const analysis = parseFirstJson(raw);
+
+      // Post-process meta title and numeric fields
+      if (analysis.meta && analysis.meta.title) {
+        analysis.meta.title = cleanTitle(analysis.meta.title, site);
+      }
+
+      if (analysis.biasAnalysis) {
+        const [L, C, R] = normalize100(
+          analysis.biasAnalysis.left, analysis.biasAnalysis.center, analysis.biasAnalysis.right
+        );
+        analysis.biasAnalysis.left = L; analysis.biasAnalysis.center = C; analysis.biasAnalysis.right = R;
+        if (!analysis.biasAnalysis.confidence) analysis.biasAnalysis.confidence = "medium";
+      }
+
+      if (analysis.sentiment) {
+        const [P, N, NEG] = normalize100(
+          analysis.sentiment.positive, analysis.sentiment.neutral, analysis.sentiment.negative
+        );
+        analysis.sentiment.positive = P; analysis.sentiment.neutral = N; analysis.sentiment.negative = NEG;
+      }
+
+      console.log(`✅ Analysis ok (${wordCount} words): bias ${analysis.biasAnalysis?.left}/${analysis.biasAnalysis?.center}/${analysis.biasAnalysis?.right}`);
+      return analysis as AnalyzeResponse;
+
+    } catch (err: any) {
+      console.error("❌ OpenAI analysis error:", err?.message || err);
+
+      if (String(err?.message || "").includes("429")) {
+        return { limited: true, reason: "rate_limited", advice: "We’re at capacity. Please try again in a minute." };
+      }
+      if (String(err?.message || "").includes("timeout")) {
+        return { limited: true, reason: "timeout", advice: "That took too long. Try a shorter article or paste text." };
+      }
+      if (String(err?.message || "").includes("non_json")) {
+        return { limited: true, reason: "analysis_failed", advice: "Analyzer returned non-JSON. Please retry." };
+      }
+      return { limited: true, reason: "api_error", advice: "Analyzer temporarily unavailable. Please try again later." };
+    }
+  }
+);
