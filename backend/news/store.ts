@@ -11,19 +11,17 @@ interface CacheEntry<T = any> {
   expiry: number;        // epoch ms when this entry expires
 }
 
+const MAX_CACHE_ENTRIES = Number(process.env.CACHE_MAX_ENTRIES || 2000);
+
 class MemoryStore {
   private rateLimits = new Map<string, RateLimitEntry>();
   private cache = new Map<string, CacheEntry>();
 
-  /**
-   * Sliding/windowed rate limit per IP using CONFIG.RATE_LIMIT_*.
-   * - Window length: CONFIG.RATE_LIMIT_WINDOW_MS (default 1h)
-   * - Max requests:  CONFIG.RATE_LIMIT_REQUESTS_PER_HOUR
-   */
+  /** Sliding/windowed rate limit per IP using CONFIG.RATE_LIMIT_* */
   checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetTime: number } {
     const now = Date.now();
     const windowMs = Number(CONFIG.RATE_LIMIT_WINDOW_MS) || 60 * 60 * 1000;
-    const maxReq = Number(CONFIG.RATE_LIMIT_REQUESTS_PER_HOUR) || 20;
+    const maxReq  = Number(CONFIG.RATE_LIMIT_REQUESTS_PER_HOUR) || 20;
 
     let entry = this.rateLimits.get(ip);
 
@@ -32,7 +30,7 @@ class MemoryStore {
       entry = { count: 0, windowStart: now };
     }
 
-    // can we allow this request?
+    // blocked?
     if (entry.count >= maxReq) {
       const resetTime = entry.windowStart + windowMs;
       this.rateLimits.set(ip, entry);
@@ -44,17 +42,13 @@ class MemoryStore {
 
     const remaining = Math.max(0, maxReq - entry.count);
     const resetTime = entry.windowStart + windowMs;
-
     return { allowed: true, remaining, resetTime };
   }
 
-  /**
-   * Get a cached value by key if not expired; otherwise null.
-   */
+  /** Get a cached value by key if not expired; otherwise null. */
   getCached<T = any>(key: string): T | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
-
     if (Date.now() > entry.expiry) {
       this.cache.delete(key);
       return null;
@@ -62,52 +56,58 @@ class MemoryStore {
     return entry.data as T;
   }
 
-  /**
-   * Set a cached value with TTL (defaults to CONFIG.CACHE_TTL_MS).
-   */
+  /** Set a cached value with TTL (defaults to CONFIG.CACHE_TTL_MS). */
   setCached<T = any>(key: string, data: T, ttlMs?: number): void {
     const ttl = typeof ttlMs === "number" ? ttlMs : (Number(CONFIG.CACHE_TTL_MS) || 10 * 60 * 1000);
+    // evict oldest if we’re over soft cap
+    if (this.cache.size >= MAX_CACHE_ENTRIES) {
+      let oldestKey: string | null = null;
+      let oldestExpiry = Infinity;
+      for (const [k, v] of this.cache.entries()) {
+        if (v.expiry < oldestExpiry) { oldestExpiry = v.expiry; oldestKey = k; }
+      }
+      if (oldestKey) this.cache.delete(oldestKey);
+    }
     this.cache.set(key, { data, expiry: Date.now() + ttl });
   }
 
-  /**
-   * Explicitly remove a cached key.
-   */
+  /** Explicitly remove a cached key. */
   deleteCached(key: string): void {
     this.cache.delete(key);
   }
 
-  /**
-   * Housekeeping for expired cache entries and stale rate windows.
-   */
+  /** Housekeeping for expired cache entries and stale rate windows. */
   cleanup(): void {
     const now = Date.now();
     const windowMs = Number(CONFIG.RATE_LIMIT_WINDOW_MS) || 60 * 60 * 1000;
 
-    // Clean rate limits (drop windows older than 2x window size to be safe)
+    // Clean rate limits (drop windows older than 2x window size)
     for (const [ip, entry] of this.rateLimits.entries()) {
-      if (now - entry.windowStart > windowMs * 2) {
-        this.rateLimits.delete(ip);
-      }
+      if (now - entry.windowStart > windowMs * 2) this.rateLimits.delete(ip);
     }
 
     // Clean cache
     for (const [key, entry] of this.cache.entries()) {
-      if (entry.expiry <= now) {
-        this.cache.delete(key);
-      }
+      if (entry.expiry <= now) this.cache.delete(key);
     }
   }
 }
 
 export const memoryStore = new MemoryStore();
 
-// Cleanup cadence: pick the smaller of cache TTL and window size, minimum 5 minutes.
+/** Cleanup scheduler with a global guard so we don’t double-schedule on hot reloads */
+declare global { // safe in TS: extends NodeJS globalThis
+  // eslint-disable-next-line no-var
+  var __UNSPIN_STORE_CLEANUP__: NodeJS.Timer | undefined;
+}
+
 (function scheduleCleanup() {
   const minInterval = 5 * 60 * 1000;
   const windowMs = Number(CONFIG.RATE_LIMIT_WINDOW_MS) || 60 * 60 * 1000;
   const cacheTtl = Number(CONFIG.CACHE_TTL_MS) || 10 * 60 * 1000;
   const interval = Math.max(minInterval, Math.min(windowMs, cacheTtl));
 
-  setInterval(() => memoryStore.cleanup(), interval);
+  if (!global.__UNSPIN_STORE_CLEANUP__) {
+    global.__UNSPIN_STORE_CLEANUP__ = setInterval(() => memoryStore.cleanup(), interval);
+  }
 })();
