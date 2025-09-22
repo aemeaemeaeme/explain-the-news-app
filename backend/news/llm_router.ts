@@ -1,6 +1,8 @@
 import { secret } from "encore.dev/config";
+// If you have the CONFIG helper, import it (optional):
+// import { CONFIG, getGeminiModelFor } from "./config";
 
-// Dynamic import for Gemini to handle potential package issues
+// --- Dynamic import for Gemini ---
 let GoogleGenerativeAI: any = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -29,10 +31,7 @@ export interface UnifiedAnalysisResponse {
   tldr: string;
   eli5: string;
   why_it_matters: string[];
-  key_points: Array<{
-    tag: "fact" | "timeline" | "numbers" | "stakeholders";
-    text: string;
-  }>;
+  key_points: Array<{ tag: "fact" | "timeline" | "numbers" | "stakeholders"; text: string }>;
   bias: {
     left_pct: number;
     center_pct: number;
@@ -40,17 +39,8 @@ export interface UnifiedAnalysisResponse {
     confidence: "low" | "medium" | "high";
     note: string;
   };
-  sentiment: {
-    positive_pct: number;
-    neutral_pct: number;
-    negative_pct: number;
-    note: string;
-  };
-  perspectives: {
-    left_view: string[];
-    center_view: string[];
-    right_view: string[];
-  };
+  sentiment: { positive_pct: number; neutral_pct: number; negative_pct: number; note: string };
+  perspectives: { left_view: string[]; center_view: string[]; right_view: string[] };
   common_ground: string[];
   glossary: Array<{ term: string; definition: string }>;
   errors: Array<{ code: string; message: string }>;
@@ -58,94 +48,108 @@ export interface UnifiedAnalysisResponse {
 
 /** ---------- Config ---------- */
 const geminiApiKey = secret("GEMINI_API_KEY");
-
 const PROVIDER_CONFIG = {
   gemini: {
-    model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    model_fast: process.env.GEMINI_MODEL_FAST || process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    model_pro: process.env.GEMINI_MODEL_PRO || "gemini-1.5-pro",
     timeout: 30000,
     retries: 1,
   },
 } as const;
 
 /** ---------- Helpers ---------- */
+const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+
 function normalizeToHundred(a: number, b: number, c: number): [number, number, number] {
-  const total = a + b + c;
-  if (total === 0) return [0, 100, 0];
-  const scale = 100 / total;
-  const A = Math.round(a * scale);
-  const B = Math.round(b * scale);
-  const C = 100 - A - B;
-  return [Math.max(0, A), Math.max(0, B), Math.max(0, C)];
+  const A = clamp(a), B = clamp(b), C = clamp(c);
+  let sum = A + B + C;
+  if (sum <= 0) return [0, 100, 0];
+  if (sum !== 100) {
+    const s = 100 / sum;
+    const nA = Math.round(A * s);
+    const nB = Math.round(B * s);
+    const nC = 100 - nA - nB;
+    return [clamp(nA), clamp(nB), clamp(nC)];
+  }
+  return [A, B, C];
+}
+
+function coerceTag(tag: any): "fact" | "timeline" | "numbers" | "stakeholders" {
+  const t = String(tag || "").toLowerCase();
+  if (t === "timeline") return "timeline";
+  if (t === "numbers" || t === "number") return "numbers";
+  if (t === "stakeholders" || t === "stakeholder") return "stakeholders";
+  return "fact";
+}
+
+function stripFences(s: string): string {
+  let x = (s || "").trim();
+  if (x.startsWith("```")) x = x.replace(/^```[a-z0-9]*\s*/i, "").replace(/\s*```$/i, "").trim();
+  return x;
+}
+function parseFirstJson(s: string): any {
+  const txt = stripFences(s);
+  try { return JSON.parse(txt); } catch {}
+  const i = txt.indexOf("{"), j = txt.lastIndexOf("}");
+  if (i >= 0 && j > i) {
+    const cand = txt.slice(i, j + 1);
+    try { return JSON.parse(cand); } catch {}
+  }
+  throw new Error("non_json");
 }
 
 function validateResponse(response: any): Omit<UnifiedAnalysisResponse, "meta" | "errors"> | null {
-  try {
-    if (!response || typeof response !== "object") return null;
+  if (!response || typeof response !== "object") return null;
 
-    // Bias
-    const [left_pct, center_pct, right_pct] = normalizeToHundred(
-      Number(response.bias?.left_pct ?? response.bias?.left ?? 33),
-      Number(response.bias?.center_pct ?? response.bias?.center ?? 34),
-      Number(response.bias?.right_pct ?? response.bias?.right ?? 33)
-    );
+  const [left_pct, center_pct, right_pct] = normalizeToHundred(
+    response.bias?.left_pct ?? response.bias?.left ?? 33,
+    response.bias?.center_pct ?? response.bias?.center ?? 34,
+    response.bias?.right_pct ?? response.bias?.right ?? 33
+  );
 
-    // Sentiment
-    const [positive_pct, neutral_pct, negative_pct] = normalizeToHundred(
-      Number(response.sentiment?.positive_pct ?? response.sentiment?.positive ?? 34),
-      Number(response.sentiment?.neutral_pct ?? response.sentiment?.neutral ?? 33),
-      Number(response.sentiment?.negative_pct ?? response.sentiment?.negative ?? 33)
-    );
+  const [positive_pct, neutral_pct, negative_pct] = normalizeToHundred(
+    response.sentiment?.positive_pct ?? response.sentiment?.positive ?? 34,
+    response.sentiment?.neutral_pct ?? response.sentiment?.neutral ?? 33,
+    response.sentiment?.negative_pct ?? response.sentiment?.negative ?? 33
+  );
 
-    return {
-      header: {
-        title: String(response.header?.title || response.title || "Untitled"),
-        byline: response.header?.byline || response.byline || null,
-        read_time_min: Number(response.header?.read_time_min || response.read_time_min) || null,
-        tone: (response.header?.tone || response.tone || "unknown") as UnifiedAnalysisResponse["header"]["tone"],
-      },
-      tldr: String(response.tldr || "Summary not available"),
-      eli5: String(response.eli5 || "Simplified explanation not available"),
-      why_it_matters: Array.isArray(response.why_it_matters) ? response.why_it_matters.slice(0, 6) : [],
-      key_points: Array.isArray(response.key_points)
-        ? response.key_points.slice(0, 10).map((p: any) => ({
-            tag: (["fact", "timeline", "numbers", "stakeholders"].includes(p.tag) ? p.tag : "fact") as
-              | "fact"
-              | "timeline"
-              | "numbers"
-              | "stakeholders",
-            text: String(p.text || ""),
-          })).filter((p: any) => p.text)
-        : [],
-      bias: {
-        left_pct,
-        center_pct,
-        right_pct,
-        confidence: (response.bias?.confidence || "medium") as "low" | "medium" | "high",
-        note: String(response.bias?.note || response.bias?.rationale || "Analysis based on content framing"),
-      },
-      sentiment: {
-        positive_pct,
-        neutral_pct,
-        negative_pct,
-        note: String(response.sentiment?.note || response.sentiment?.rationale || "Based on language and tone analysis"),
-      },
-      perspectives: {
-        left_view: Array.isArray(response.perspectives?.left_view) ? response.perspectives.left_view.slice(0, 5) : [],
-        center_view: Array.isArray(response.perspectives?.center_view) ? response.perspectives.center_view.slice(0, 5) : [],
-        right_view: Array.isArray(response.perspectives?.right_view) ? response.perspectives.right_view.slice(0, 5) : [],
-      },
-      common_ground: Array.isArray(response.common_ground) ? response.common_ground.slice(0, 4) : [],
-      glossary: Array.isArray(response.glossary)
-        ? response.glossary
-            .slice(0, 8)
-            .map((g: any) => ({ term: String(g.term || ""), definition: String(g.definition || "") }))
-            .filter((g: any) => g.term && g.definition)
-        : [],
-    };
-  } catch (e) {
-    console.error("Response validation failed:", e);
-    return null;
-  }
+  const kp = Array.isArray(response.key_points) ? response.key_points : [];
+  const perspectives = response.perspectives || {};
+
+  return {
+    header: {
+      title: String(response.header?.title || response.title || "Untitled"),
+      byline: response.header?.byline ?? response.byline ?? null,
+      read_time_min: Number(response.header?.read_time_min ?? response.read_time_min) || null,
+      tone: (response.header?.tone || response.tone || "unknown") as UnifiedAnalysisResponse["header"]["tone"],
+    },
+    tldr: String(response.tldr || "Summary not available"),
+    eli5: String(response.eli5 || "Simplified explanation not available"),
+    why_it_matters: Array.isArray(response.why_it_matters) ? response.why_it_matters.slice(0, 6) : [],
+    key_points: kp.slice(0, 10).map((p: any) => ({ tag: coerceTag(p?.tag), text: String(p?.text || "") }))
+      .filter((p: any) => p.text),
+    bias: {
+      left_pct, center_pct, right_pct,
+      confidence: (response.bias?.confidence || "medium") as "low" | "medium" | "high",
+      note: String(response.bias?.note || response.bias?.rationale || "Analysis based on content framing"),
+    },
+    sentiment: {
+      positive_pct, neutral_pct, negative_pct,
+      note: String(response.sentiment?.note || response.sentiment?.rationale || "Based on language and tone analysis"),
+    },
+    perspectives: {
+      left_view: Array.isArray(perspectives.left_view) ? perspectives.left_view.slice(0, 5) : [],
+      center_view: Array.isArray(perspectives.center_view) ? perspectives.center_view.slice(0, 5) : [],
+      right_view: Array.isArray(perspectives.right_view) ? perspectives.right_view.slice(0, 5) : [],
+    },
+    common_ground: Array.isArray(response.common_ground) ? response.common_ground.slice(0, 4) : [],
+    glossary: Array.isArray(response.glossary)
+      ? response.glossary.slice(0, 8).map((g: any) => ({
+          term: String(g?.term || ""),
+          definition: String(g?.definition || "")
+        })).filter((g: any) => g.term && g.definition)
+      : [],
+  };
 }
 
 function createSystemPrompt(isLimited: boolean): string {
@@ -165,29 +169,33 @@ function createSystemPrompt(isLimited: boolean): string {
 }
 
 CRITICAL RULES:
-- bias and sentiment percentages must sum to 100
+- Percentages for bias and sentiment must sum to 100
 - Never fabricate quotes or specific details not in the text
 - Use varied, realistic percentages based on actual content analysis
-- If limited extraction, state uncertainties clearly
-${isLimited ? "- Note that full article text was not available; analysis is based on limited content" : ""}
+- ${isLimited ? "You have limited text; call out uncertainty" : "Full text available"}
 - Return ONLY the JSON, no additional text`;
 }
 
 /** ---------- Gemini call ---------- */
-async function callGemini(prompt: string, articleData: any) {
+async function callGemini(prompt: string, articleData: any, inputLength: number) {
   if (!GoogleGenerativeAI) throw new Error("Google Generative AI package not available");
 
   const apiKey = geminiApiKey();
   if (!apiKey) throw new Error("Gemini API key not configured");
 
+  const modelName =
+    // If you’ve got getGeminiModelFor from config, prefer it:
+    // getGeminiModelFor(inputLength, articleData?.limited)
+    (inputLength > 6000 ? PROVIDER_CONFIG.gemini.model_pro : PROVIDER_CONFIG.gemini.model_fast);
+
   const client = new GoogleGenerativeAI(apiKey);
   const model = client.getGenerativeModel({
-    model: PROVIDER_CONFIG.gemini.model,
+    model: modelName,
     generationConfig: { temperature: 0.3, maxOutputTokens: 2500 },
   });
 
   const fullPrompt = `${prompt}\n\nArticle data: ${JSON.stringify(articleData)}`;
-  const startTime = Date.now();
+  const start = Date.now();
 
   const response = await Promise.race([
     model.generateContent(fullPrompt),
@@ -200,20 +208,15 @@ async function callGemini(prompt: string, articleData: any) {
   let content = result.text();
   if (!content) throw new Error("No text content in Gemini response");
 
-  // strip code fences if present
-  content = content.trim();
-  if (content.startsWith("```json")) content = content.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-  if (content.startsWith("```")) content = content.replace(/^```\s*/, "").replace(/\s*```$/, "");
-
-  const parsed = JSON.parse(content);
+  const parsed = parseFirstJson(content);
   const validated = validateResponse(parsed);
   if (!validated) throw new Error("Gemini response validation failed");
 
-  const elapsed_ms = Date.now() - startTime;
+  const elapsed_ms = Date.now() - start;
 
   const meta: UnifiedAnalysisResponse["meta"] = {
     provider: "gemini",
-    model: PROVIDER_CONFIG.gemini.model,
+    model: modelName,
     elapsed_ms,
     site: null,
     url: "",
@@ -231,56 +234,52 @@ export async function analyzeWithLLM(
   isLimited = false
 ): Promise<UnifiedAnalysisResponse> {
   const systemPrompt = createSystemPrompt(isLimited);
+  const word_count = (articleText || "").split(/\s+/).filter(Boolean).length;
+
+  let site: string | null = null;
+  try { site = new URL(url).hostname; } catch { site = null; }
+
   const articleData = {
     url,
     title,
     text: articleText,
-    word_count: articleText.split(/\s+/).length,
+    word_count,
     limited: isLimited,
   };
 
   const errors: UnifiedAnalysisResponse["errors"] = [];
 
   try {
-    console.log("🔮 Attempting Gemini analysis");
-    const { validated, meta } = await callGemini(systemPrompt, articleData);
+    const { validated, meta } = await callGemini(systemPrompt, articleData, articleText.length);
 
     const result: UnifiedAnalysisResponse = {
       meta: {
         ...meta,
         url,
-        site: new URL(url).hostname,
+        site,
         status: isLimited ? "limited" : "full",
       },
       ...validated,
       errors,
     };
 
-    console.log(`✅ Gemini analysis completed (${result.meta.elapsed_ms}ms)`);
     return result;
   } catch (err: any) {
     const message = err?.message || String(err);
-    console.error("❌ Gemini failed:", message);
     errors.push({ code: "gemini_error", message });
 
-    // Hard error response that preserves frontend expectations
     return {
       meta: {
         provider: "gemini",
         model: "error",
         elapsed_ms: 0,
-        site: new URL(url).hostname,
+        site,
         url,
         status: "error",
       },
-      header: {
-        title: title || "Analysis Failed",
-        byline: null,
-        read_time_min: null,
-        tone: "unknown",
-      },
-      tldr: "Analysis temporarily unavailable. Gemini could not process this content right now.",
-      eli5: "Our analyzer had trouble. Try again later or open the original article.",
+      header: { title: title || "Analysis Failed", byline: null, read_time_min: null, tone: "unknown" },
+      tldr: "Analysis temporarily unavailable.",
+      eli5: "We had trouble analyzing this article right now.",
       why_it_matters: [
         "Service reliability affects the reading experience",
         "Temporary limits or timeouts usually clear after a retry",
