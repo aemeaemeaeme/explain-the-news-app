@@ -25,7 +25,7 @@ export default function App() {
             <Route path="/contact" element={<ContactPage />} />
 
             {/* ✅ New route for news results */}
-            <Route path="/news-result" element={<NewsResultPage />} />
+<Route path="/news-result" element={<NewsResultPage />} />
           </Routes>
         </div>
       </Router>
