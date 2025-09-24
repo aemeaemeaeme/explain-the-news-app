@@ -1,48 +1,103 @@
 // backend/news/explain_unified.ts
 import { api } from "encore.dev/api";
-import { fetchArticle } from "./fetch";
-import { analyzeWithLLM, type UnifiedAnalysisResponse } from "./llm_router";
+import { getConfigSummary } from "./config";
+import { fetchArticle } from "./fetch"; // same-service API; callable directly
+import { analyzeWithLLM } from "./llm_router";
 
-export interface ExplainRequest { url?: string; pastedText?: string; }
+// Use named interfaces for Encore's type checker
+export interface ExplainRequest {
+  url?: string;
+  pastedText?: string;
+}
+
+// Import the type normally, then extend into a named interface
+import type { UnifiedAnalysisResponse } from "./llm_router";
 export interface ExplainResponse extends UnifiedAnalysisResponse {}
 
 export const explain = api<ExplainRequest, ExplainResponse>(
   { expose: true, method: "POST", path: "/explain" },
   async ({ url, pastedText }) => {
+    console.log("🧭 /news/explain called", { hasUrl: !!url, hasText: !!pastedText });
+    console.log("ℹ️  CONFIG:", getConfigSummary());
+
     if (!url && !pastedText) {
       return {
-        meta: { provider: "openai", model: "none", elapsed_ms: 0, site: "", url: "", status: "error" },
-        header: { title: "No input", byline: null, read_time_min: null, tone: "unknown" },
-        tldr: "Provide a URL or paste the article text.",
-      } as ExplainResponse;
+        meta: {
+          provider: "gemini",
+          model: "error",
+          elapsed_ms: 0,
+          site: "",
+          url: "",
+          status: "error",
+        },
+        header: {
+          title: "No input provided",
+          byline: null,
+          read_time_min: null,
+          tone: "unknown",
+        },
+        tldr: "Please provide a URL or paste the article text.",
+        eli5: "I need either a link to the article or the article text to analyze.",
+        why_it_matters: [],
+        key_points: [],
+        bias: { left_pct: 0, center_pct: 100, right_pct: 0, confidence: "low", note: "No data" },
+        sentiment: { positive_pct: 0, neutral_pct: 100, negative_pct: 0, note: "No data" },
+        perspectives: { left_view: [], center_view: [], right_view: [] },
+        common_ground: [],
+        glossary: [],
+        errors: [{ code: "no_input", message: "Provide url or pastedText" }],
+      };
     }
 
-    // If pasted text: go straight to LLM
-    if (pastedText && pastedText.trim()) {
-      return analyzeWithLLM(pastedText.trim(), url || "", url || "User Text", /*isLimited*/ false);
+    try {
+      // 1) Pasted text path: analyze directly
+      if (pastedText && pastedText.trim().length > 0) {
+        const clean = pastedText.trim();
+        const title = (url ?? "").toString() || "User-provided text";
+        const res = await analyzeWithLLM(clean, url ?? "", title, /* limited */ false);
+        return res;
+      }
+
+      // 2) URL path: fetch then analyze
+      if (url) {
+        const fetched = await fetchArticle({ url });
+        const isLimited = fetched.status === "limited";
+        const articleText = fetched.text || "";
+        const title = fetched.title || "Untitled";
+        const res = await analyzeWithLLM(articleText, url, title, isLimited);
+        return res;
+      }
+
+      throw new Error("unreachable");
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      console.error("❌ /news/explain failed:", msg);
+      return {
+        meta: {
+          provider: "gemini",
+          model: "error",
+          elapsed_ms: 0,
+          site: url ? new URL(url).hostname : "",
+          url: url ?? "",
+          status: "error",
+        },
+        header: {
+          title: "Analysis Failed",
+          byline: null,
+          read_time_min: null,
+          tone: "unknown",
+        },
+        tldr: "We couldn’t analyze this article right now.",
+        eli5: "Something went wrong while fetching or summarizing. Please try a different link or paste the text.",
+        why_it_matters: [],
+        key_points: [],
+        bias: { left_pct: 0, center_pct: 100, right_pct: 0, confidence: "low", note: "Error path" },
+        sentiment: { positive_pct: 0, neutral_pct: 100, negative_pct: 0, note: "Error path" },
+        perspectives: { left_view: [], center_view: [], right_view: [] },
+        common_ground: [],
+        glossary: [],
+        errors: [{ code: "explain_error", message: msg }],
+      };
     }
-
-    // URL flow
-    const got = await fetchArticle({ url: String(url) });
-    const limited = got.status !== "ok";
-    const clean = got.text || "";
-    const title = got.title || "Untitled";
-    const res = await analyzeWithLLM(clean, String(url), title, limited);
-
-    // Fill header meta if LLM left them blank
-    res.header = {
-      title: res.header?.title || title,
-      byline: res.header?.byline ?? (got.byline || null),
-      read_time_min: res.header?.read_time_min ?? got.estReadMin,
-      tone: res.header?.tone || "neutral",
-    };
-    res.meta = {
-      ...res.meta,
-      site: res.meta?.site || got.site,
-      url: String(url),
-      status: limited ? "limited" : "ok",
-    };
-
-    return res;
   }
 );
