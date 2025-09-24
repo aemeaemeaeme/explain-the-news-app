@@ -26,10 +26,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(204).end();
     }
 
-    // RIGHT — only allow POST
-if (req.method !== "POST") {
-  return sendJson(res, { ok: false, error: "Method Not Allowed" }, 405);
-}
+    if (req.method !== "POST") {
+      return json(res, { ok: false, error: "Method Not Allowed" }, 405);
+    }
 
     // Parse body safely
     const input = typeof req.body === "string" ? safeParse(req.body) : (req.body || {});
