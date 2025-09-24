@@ -1,4 +1,6 @@
-// frontend/components/Hero.tsx
+// PATH: frontend/components/Hero.tsx
+// WHY: Force calls to your real backend via API_BASE; never hit the frontend HTML again.
+
 import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -15,7 +17,13 @@ type ExplainResponse = {
   [k: string]: any;
 };
 
-const API_URL = '/api/news/analyze'; // Encore endpoints are always under /api/<service>/<path>
+// Read backend origin from env (set this in hosting).
+const API_BASE =
+  (import.meta as any)?.env?.VITE_API_BASE ||
+  (process as any)?.env?.NEXT_PUBLIC_API_BASE ||
+  '';
+
+const API_URL = API_BASE ? `${API_BASE.replace(/\/$/, '')}/api/news/analyze` : ''; // avoid double slashes
 
 export default function Hero() {
   const [url, setUrl] = useState('');
@@ -34,39 +42,39 @@ export default function Hero() {
   }, [location.state, navigate]);
 
   async function callExplain(body: { url?: string; pastedText?: string }): Promise<ExplainResponse> {
+    if (!API_URL) {
+      // Why: prevents accidental calls to the frontend when env isn’t configured.
+      throw new Error(
+        'API base URL is not set. Define VITE_API_BASE (or NEXT_PUBLIC_API_BASE) to your backend origin (e.g., https://xxxx.lp.dev).'
+      );
+    }
+
     const res = await fetch(API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      // credentials removed; cross-origin CORS is simpler without cookies
       body: JSON.stringify(body),
     });
 
-    const text = await res.text();
-
-    if (/<!doctype html/i.test(text)) {
-      throw new Error('Unexpected non-JSON (HTML) from /api/news/explain — request hit the frontend instead of the API.');
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      const snippet = (await res.text()).slice(0, 220).replace(/\s+/g, ' ');
+      throw new Error(
+        `Unexpected non-JSON (HTML) from ${API_URL}. This means the request hit the frontend site, not the API. Preview: ${snippet}`
+      );
     }
+
+    const json = (await res.json()) as ExplainResponse;
 
     if (!res.ok) {
-      try {
-        const j = JSON.parse(text);
-        const msg = j?.errors?.[0]?.message || j?.message || `${res.status} ${res.statusText}`;
-        throw new Error(msg);
-      } catch {
-        const snippet = text.slice(0, 220).replace(/\s+/g, ' ');
-        throw new Error(`HTTP ${res.status} – ${res.statusText}. Preview: ${snippet}`);
-      }
+      const msg =
+        (json as any)?.errors?.[0]?.message ||
+        (json as any)?.message ||
+        `${res.status} ${res.statusText}`;
+      throw new Error(msg);
     }
 
-    try {
-      return JSON.parse(text) as ExplainResponse;
-    } catch {
-      const snippet = text.slice(0, 220).replace(/\s+/g, ' ');
-      throw new Error(`Unexpected non-JSON response from server. Preview: ${snippet}`);
-    }
+    return json;
   }
 
   const processMutation = useMutation({
@@ -81,8 +89,7 @@ export default function Hero() {
           variant: 'default',
         });
       }
-      // ✅ send user to the new results page
-navigate('/news-result', { state: { analysis: response } });
+      navigate('/news-result', { state: { analysis: response } });
       setShowPasteModal(false);
     },
     onError: (err: any) => {
