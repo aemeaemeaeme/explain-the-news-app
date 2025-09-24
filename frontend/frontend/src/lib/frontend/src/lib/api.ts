@@ -5,10 +5,7 @@ Fixes backend path + sends required payload
 
 import { fetchJson } from "./fetchJson";
 
-const API_BASE =
-  (import.meta as any)?.env?.VITE_API_BASE ||
-  (process as any)?.env?.NEXT_PUBLIC_API_BASE ||
-  "";
+const API_BASE = "https://staging-explain-the-news-app-8mc2.encr.app";
 
 export type ExplainResponse = {
   ok?: boolean;
