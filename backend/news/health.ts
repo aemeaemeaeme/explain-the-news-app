@@ -7,7 +7,7 @@ const geminiKey = secret("GEMINI_API_KEY");
 
 // Health check endpoint to verify API configurations
 export const healthCheck = api(
-  { expose: true, method: "GET", path: "/health" },
+  { expose: true, method: "GET", path: "/news/health" },
   async () => {
     
     const openaiConfigured = !!(openaiKey && openaiKey());
