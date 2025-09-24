@@ -15,7 +15,7 @@ type ExplainResponse = {
   [k: string]: any;
 };
 
-const API_URL = '/api/news/explain'; // Encore endpoints are always under /api/<service>/<path>
+const API_URL = '/api/news/analyze'; // Encore endpoints are always under /api/<service>/<path>
 
 export default function Hero() {
   const [url, setUrl] = useState('');
