@@ -17,6 +17,8 @@ export type ExplainResponse = {
   [k: string]: any;
 };
 
+console.log("DEBUG: VITE_API_BASE =", API_BASE);
+
 export async function explainNews(input: { url?: string; text?: string }) {
   if (!API_BASE) {
     throw new Error("API base URL missing. Set VITE_API_BASE (or NEXT_PUBLIC_API_BASE).");
