@@ -1,5 +1,5 @@
 // frontend/pages/NewsResultPage.tsx
-import NewsResults from '../components/NewsResults'; 
+import NewsResultPage from './pages/NewsResultPage';
 import { useLocation } from 'react-router-dom';
 
 export default function NewsResultPage() {
