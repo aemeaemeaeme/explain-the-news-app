@@ -82,7 +82,7 @@ export default function Hero() {
         });
       }
       // ✅ send user to the new results page
-      navigate('/news-result', { state: { analysis: response } });
+navigate('/news-result', { state: { analysis: response } });
       setShowPasteModal(false);
     },
     onError: (err: any) => {
