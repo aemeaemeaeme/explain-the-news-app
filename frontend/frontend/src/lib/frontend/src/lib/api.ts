@@ -1,6 +1,6 @@
 /* ===========================================
 FILE: frontend/src/lib/api.ts
-WHY: Fixes backend path and sends required payload
+Fixes backend path + sends required payload
 =========================================== */
 
 import { fetchJson } from "./fetchJson";
@@ -17,23 +17,20 @@ export type ExplainResponse = {
   [k: string]: any;
 };
 
-/**
- * Calls backend /analyze endpoint with all required fields
- */
 export async function explainNews(input: { url?: string; text?: string }) {
   if (!API_BASE) {
-    throw new Error("API base URL missing. Set VITE_API_BASE (or NEXT_PUBLIC_API_BASE) to your backend origin.");
+    throw new Error("API base URL missing. Set VITE_API_BASE (or NEXT_PUBLIC_API_BASE).");
   }
   const base = API_BASE.replace(/\/$/, "");
 
-  // Build required payload
+  // Build payload for backend
   const payload = {
     url: input.url || "pasted-article",
     site: input.url ? new URL(input.url).hostname : "pasted",
     title: input.text ? "Pasted Article" : "Fetched Article",
     byline: null,
-    estReadMin: 3, // default until we calculate properly
-    text: input.text || "Placeholder article text (scraper integration needed)"
+    estReadMin: 3,
+    text: input.text || "Placeholder article text"
   };
 
   return fetchJson<ExplainResponse>(`${base}/analyze`, {
