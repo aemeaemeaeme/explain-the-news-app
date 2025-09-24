@@ -38,17 +38,14 @@ export default function Hero() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // This helps some preview servers route correctly instead of serving HTML
         'Accept': 'application/json',
       },
-      // keep it same-origin so Encore’s router catches it
       credentials: 'same-origin',
       body: JSON.stringify(body),
     });
 
     const text = await res.text();
 
-    // If we got HTML, we definitely hit the SPA, not the API.
     if (/<!doctype html/i.test(text)) {
       throw new Error('Unexpected non-JSON (HTML) from /api/news/explain — request hit the frontend instead of the API.');
     }
@@ -84,14 +81,14 @@ export default function Hero() {
           variant: 'default',
         });
       }
-      navigate('/article/temp', { state: { analysis: response } });
+      // ✅ send user to the new results page
+      navigate('/news-result', { state: { analysis: response } });
       setShowPasteModal(false);
     },
     onError: (err: any) => {
       const msg = (err?.message || 'Failed to reach the server').toString();
       alert(`Error processing URL:\n${msg}`);
       toast({ title: 'Request failed', description: msg, variant: 'destructive' });
-      // eslint-disable-next-line no-console
       console.error('[Hero] Error processing URL:', err);
     },
   });
