@@ -1,5 +1,7 @@
-// PATH: frontend/components/Hero.tsx
-// WHY: Force calls to your real backend via API_BASE; never hit the frontend HTML again.
+/* ===========================================
+FILE: frontend/components/Hero.tsx
+WHY: Use absolute backend URL via env; never hit the website HTML.
+=========================================== */
 
 import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
@@ -10,20 +12,7 @@ import { Loader2, FileText } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import PaywallModal from './PaywallModal';
 import PasteTextModal from './PasteTextModal';
-
-type ExplainResponse = {
-  meta: { status: 'full' | 'limited' | 'error'; url: string; site?: string | null; source?: string };
-  header: { title: string; byline: string | null; read_time_min: number | null; tone: string };
-  [k: string]: any;
-};
-
-// Read backend origin from env (set this in hosting).
-const API_BASE =
-  (import.meta as any)?.env?.VITE_API_BASE ||
-  (process as any)?.env?.NEXT_PUBLIC_API_BASE ||
-  '';
-
-const API_URL = API_BASE ? `${API_BASE.replace(/\/$/, '')}/api/news/analyze` : ''; // avoid double slashes
+import { explainNews, type ExplainResponse } from '@/src/lib/api'; // <- uses VITE_API_BASE
 
 export default function Hero() {
   const [url, setUrl] = useState('');
@@ -41,45 +30,10 @@ export default function Hero() {
     }
   }, [location.state, navigate]);
 
-  async function callExplain(body: { url?: string; pastedText?: string }): Promise<ExplainResponse> {
-    if (!API_URL) {
-      // Why: prevents accidental calls to the frontend when env isn’t configured.
-      throw new Error(
-        'API base URL is not set. Define VITE_API_BASE (or NEXT_PUBLIC_API_BASE) to your backend origin (e.g., https://xxxx.lp.dev).'
-      );
-    }
-
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      // credentials removed; cross-origin CORS is simpler without cookies
-      body: JSON.stringify(body),
-    });
-
-    const ct = res.headers.get('content-type') || '';
-    if (!ct.includes('application/json')) {
-      const snippet = (await res.text()).slice(0, 220).replace(/\s+/g, ' ');
-      throw new Error(
-        `Unexpected non-JSON (HTML) from ${API_URL}. This means the request hit the frontend site, not the API. Preview: ${snippet}`
-      );
-    }
-
-    const json = (await res.json()) as ExplainResponse;
-
-    if (!res.ok) {
-      const msg =
-        (json as any)?.errors?.[0]?.message ||
-        (json as any)?.message ||
-        `${res.status} ${res.statusText}`;
-      throw new Error(msg);
-    }
-
-    return json;
-  }
-
   const processMutation = useMutation({
     mutationFn: async ({ url, pastedText }: { url?: string; pastedText?: string }) => {
-      return callExplain({ url, pastedText });
+      // Why: guarantees we call backend via absolute URL and get JSON only.
+      return explainNews({ url, text: pastedText }) as Promise<ExplainResponse>;
     },
     onSuccess: (response) => {
       if (response?.meta?.status === 'limited' && !response?.meta?.source) {
@@ -195,4 +149,56 @@ export default function Hero() {
       />
     </section>
   );
+}
+
+/* ===========================================
+FILE: frontend/src/lib/api.ts
+WHY: Call the correct backend path: /api/news/analyze (matches your backend/news/*)
+=========================================== */
+
+import { fetchJson } from "./fetchJson";
+
+const API_BASE =
+  (import.meta as any)?.env?.VITE_API_BASE ||
+  (process as any)?.env?.NEXT_PUBLIC_API_BASE ||
+  "";
+
+export type ExplainResponse = {
+  ok?: boolean;
+  meta?: { status: 'full' | 'limited' | 'error'; url: string; site?: string | null; source?: string };
+  header?: { title: string; byline: string | null; read_time_min: number | null; tone: string };
+  [k: string]: any;
+};
+
+export async function explainNews(input: { url?: string; text?: string }) {
+  if (!API_BASE) {
+    throw new Error("API base URL missing. Set VITE_API_BASE (or NEXT_PUBLIC_API_BASE) to your backend origin.");
+  }
+  const base = API_BASE.replace(/\/$/, "");
+  return fetchJson<ExplainResponse>(`${base}/api/news/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ url: input.url, pastedText: input.text }),
+  });
+}
+
+/* ===========================================
+FILE: frontend/src/lib/fetchJson.ts (unchanged)
+=========================================== */
+export async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { Accept: "application/json", "Content-Type": "application/json", ...(init.headers || {}) },
+  });
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    const snippet = await res.text();
+    throw new Error(`Expected JSON, got: ${ct}. Likely hit the frontend. Snippet: ${snippet.slice(0, 160)}`);
+  }
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = await res.json(); msg = j?.error || msg; } catch {}
+    throw new Error(msg);
+  }
+  return res.json() as Promise<T>;
 }
